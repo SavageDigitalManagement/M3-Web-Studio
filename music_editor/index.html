@@ -15,41 +15,41 @@
     <header class="topbar">
       <div class="brand">
         <div class="logo">M3 WEB STUDIO</div>
-        <div class="tag">sleek browser music editor</div>
+        <div class="tag" data-i18n="app.tag">sleek browser music editor</div>
       </div>
       <div class="transport">
-        <button id="playBtn" class="btn primary">Play</button>
-        <button id="pauseBtn" class="btn">Pause</button>
-        <button id="stopBtn" class="btn">Stop</button>
+        <button id="playBtn" class="btn primary" data-i18n="btn.play">Play</button>
+        <button id="pauseBtn" class="btn" data-i18n="btn.pause">Pause</button>
+        <button id="stopBtn" class="btn" data-i18n="btn.stop">Stop</button>
         <div class="time" id="timeReadout">00:00.0</div>
         <div class="time" id="barBeatReadout">1.1.1</div>
       </div>
       <div class="tools">
         <label class="file">
           <input id="fileInput" type="file" accept="audio/*" multiple />
-          Import Audio
+          <span data-i18n="btn.import">Import Audio</span>
         </label>
         <input id="ytUrl" type="text" class="btn hidden" placeholder="YouTube URL" />
         <button id="ripSelectedBtn" class="btn hidden">Rip → Selected</button>
         <button id="ripNewBtn" class="btn hidden">Rip → New Track</button>
         <select id="exportFormat" class="btn">
-          <option value="wav">Export WAV</option>
-          <option value="webm">Export WebM (Opus)</option>
-          <option value="ogg">Export OGG (Opus)</option>
+          <option value="wav" data-i18n="btn.exportWav">Export WAV</option>
+          <option value="webm" data-i18n="btn.exportWebm">Export WebM (Opus)</option>
+          <option value="ogg" data-i18n="btn.exportOgg">Export OGG (Opus)</option>
         </select>
-        <button id="exportBtn" class="btn">Export</button>
-        <button id="addTrack" class="btn">Add Track</button>
-        <button id="settingsBtn" class="btn">Settings</button>
+        <button id="exportBtn" class="btn" data-i18n="btn.export">Export</button>
+        <button id="addTrack" class="btn" data-i18n="btn.addTrack">Add Track</button>
+        <button id="settingsBtn" class="btn" data-i18n="btn.settings">Settings</button>
       </div>
     </header>
 
     <section class="studio">
       <aside class="sidebar">
         <div class="panel">
-          <div class="panel-title">Tracks</div>
-          <div id="mixerSidebar"></div>
-        </div>
-      </aside>
+        <div class="panel-title" data-i18n="panel.tracks">Tracks</div>
+        <div id="mixerSidebar"></div>
+      </div>
+    </aside>
       <main class="timeline" id="timeline">
         <div class="ruler" id="ruler"></div>
         <div id="rangeSelector" class="range-selector hidden">
@@ -73,32 +73,32 @@
   <div id="contextMenu" class="context hidden"></div>
 
   <div id="bottomDrawer" class="bottom-drawer">
-    <button id="menuToggle" class="menu-toggle"><span>M3 Menu</span></button>
+    <button id="menuToggle" class="menu-toggle"><span data-i18n="menu.title">M3 Menu</span></button>
     <div class="bottom-tabs">
-      <button id="tabAudio" class="tab active">Audio</button>
-      <button id="tabTracks" class="tab">Tracks</button>
-      <button id="tabMixer" class="tab">Mixer</button>
-      <button id="tabProject" class="tab">Project</button>
-      <button id="tabActions" class="tab">Actions</button>
-      <button id="tabEffects" class="tab">Effects</button>
+      <button id="tabAudio" class="tab active" data-i18n="tab.audio">Audio</button>
+      <button id="tabTracks" class="tab" data-i18n="tab.tracks">Tracks</button>
+      <button id="tabMixer" class="tab" data-i18n="tab.mixer">Mixer</button>
+      <button id="tabProject" class="tab" data-i18n="tab.project">Project</button>
+      <button id="tabActions" class="tab" data-i18n="tab.actions">Actions</button>
+      <button id="tabEffects" class="tab" data-i18n="tab.effects">Effects</button>
     </div>
     <div class="bottom-panel" id="panelAudio">
     <div id="panelResize" class="panel-resize"></div>
-    <div class="panel-title">Selected Clip</div>
+    <div class="panel-title" data-i18n="panel.selectedClip">Selected Clip</div>
     <div class="audio-preview">
       <div>
         <div id="clipName" class="muted">No clip selected</div>
         <div class="mini-controls">
           <label class="toggle">
             <input id="miniFollowToggle" type="checkbox" checked />
-            Mini Follow
+            <span data-i18n="btn.miniFollow">Mini Follow</span>
           </label>
-          <button id="audioPlay" class="btn primary">Play</button>
-          <button id="audioPause" class="btn">Pause</button>
-          <button id="audioStop" class="btn">Stop</button>
-          <button id="audioSplit" class="btn">Split</button>
-          <button id="audioDuplicate" class="btn">Duplicate</button>
-          <button id="audioDelete" class="btn">Delete</button>
+          <button id="audioPlay" class="btn primary" data-i18n="btn.play">Play</button>
+          <button id="audioPause" class="btn" data-i18n="btn.pause">Pause</button>
+          <button id="audioStop" class="btn" data-i18n="btn.stop">Stop</button>
+          <button id="audioSplit" class="btn" data-i18n="btn.split">Split</button>
+          <button id="audioDuplicate" class="btn" data-i18n="btn.duplicate">Duplicate</button>
+          <button id="audioDelete" class="btn" data-i18n="btn.delete">Delete</button>
         </div>
       </div>
       <div id="previewWrap" class="preview-wrap">
@@ -108,92 +108,92 @@
     </div>
   </div>
     <div class="bottom-panel hidden" id="panelMixer">
-    <div class="panel-title">Track EQ + Filters</div>
+    <div class="panel-title" data-i18n="panel.eq">Track EQ + Filters</div>
     <div id="eqControls" class="eq-grid"></div>
   </div>
     <div class="bottom-panel hidden" id="panelTracks">
-      <div class="panel-title">Tracks</div>
+      <div class="panel-title" data-i18n="panel.tracks">Tracks</div>
       <div id="mixerPanel"></div>
     </div>
     <div class="bottom-panel hidden" id="panelProject">
-    <div class="panel-title">Project</div>
+    <div class="panel-title" data-i18n="panel.project">Project</div>
     <div class="project-info">
-      <div><span>Tempo</span><strong id="tempoValue">120</strong></div>
-      <div><span>Key</span><strong>—</strong></div>
-      <div><span>Length</span><strong id="projectLen">0.0s</strong></div>
+      <div><span data-i18n="project.tempo">Tempo</span><strong id="tempoValue">120</strong></div>
+      <div><span data-i18n="project.key">Key</span><strong>—</strong></div>
+      <div><span data-i18n="project.length">Length</span><strong id="projectLen">0.0s</strong></div>
     </div>
     <div class="project-actions">
       <div class="project-row">
-        <button id="saveProjectFile" class="btn">Save Project File</button>
-        <button id="loadProjectFile" class="btn">Load Project File</button>
+        <button id="saveProjectFile" class="btn" data-i18n="project.saveFile">Save Project File</button>
+        <button id="loadProjectFile" class="btn" data-i18n="project.loadFile">Load Project File</button>
         <input id="projectFileInput" type="file" accept=".m3proj,application/json" class="hidden" />
       </div>
       <div class="project-row">
         <label class="toggle">
           <input id="includeAudioInFile" type="checkbox" checked />
-          Include audio in file
+          <span data-i18n="project.includeAudio">Include audio in file</span>
         </label>
       </div>
       <div class="project-row">
-        <button id="saveProjectLocal" class="btn">Save to Browser</button>
-        <button id="loadProjectLocal" class="btn">Load from Browser</button>
-        <button id="clearProjectLocal" class="btn">Clear Local</button>
+        <button id="saveProjectLocal" class="btn" data-i18n="project.saveLocal">Save to Browser</button>
+        <button id="loadProjectLocal" class="btn" data-i18n="project.loadLocal">Load from Browser</button>
+        <button id="clearProjectLocal" class="btn" data-i18n="project.clearLocal">Clear Local</button>
       </div>
-      <div id="projectStatus" class="hint muted">Project saves are local unless you export a file.</div>
+      <div id="projectStatus" class="hint muted" data-i18n="project.status">Project saves are local unless you export a file.</div>
     </div>
   </div>
     <div class="bottom-panel hidden" id="panelActions">
-    <div class="panel-title">Actions</div>
-    <button id="splitBtn" class="btn">Split at Playhead</button>
-    <button id="duplicateBtn" class="btn">Duplicate Clip</button>
-    <button id="deleteBtn" class="btn">Delete Clip</button>
-    <div class="hint">Select a clip to edit. Drag clips on the timeline.</div>
+    <div class="panel-title" data-i18n="panel.actions">Actions</div>
+    <button id="splitBtn" class="btn" data-i18n="btn.splitPlayhead">Split at Playhead</button>
+    <button id="duplicateBtn" class="btn" data-i18n="btn.duplicateClip">Duplicate Clip</button>
+    <button id="deleteBtn" class="btn" data-i18n="btn.deleteClip">Delete Clip</button>
+    <div class="hint" data-i18n="actions.hint">Select a clip to edit. Drag clips on the timeline.</div>
   </div>
     <div class="bottom-panel hidden" id="panelEffects">
-    <div class="panel-title">Effects</div>
+    <div class="panel-title" data-i18n="panel.effects">Effects</div>
     <div class="effects-actions">
-      <button id="fxFadeIn" class="btn">Fade In Selection…</button>
-      <button id="fxFadeOut" class="btn">Fade Out Selection…</button>
-      <button id="fxCrossfade" class="btn">Crossfade Selection…</button>
+      <button id="fxFadeIn" class="btn" data-i18n="fx.fadeIn">Fade In Selection…</button>
+      <button id="fxFadeOut" class="btn" data-i18n="fx.fadeOut">Fade Out Selection…</button>
+      <button id="fxCrossfade" class="btn" data-i18n="fx.crossfade">Crossfade Selection…</button>
     </div>
-    <div class="hint muted">Tip: Alt + drag on the timeline to create a selection range.</div>
+    <div class="hint muted" data-i18n="fx.tip">Tip: Alt + drag on the timeline to create a selection range.</div>
     <div class="effects-grid">
       <div class="effects-section">
-        <div class="panel-title">Clip FX (Selected Clip)</div>
+        <div class="panel-title" data-i18n="fx.clipTitle">Clip FX (Selected Clip)</div>
         <div class="effect-row">
-          <label>Time Stretch</label>
+          <label data-i18n="fx.timeStretch">Time Stretch</label>
           <input id="clipRate" type="range" min="0.5" max="2" step="0.01" value="1" />
           <span id="clipRateVal" class="muted">1.00x</span>
         </div>
         <div class="effect-row">
-          <label>Pitch</label>
+          <label data-i18n="fx.pitch">Pitch</label>
           <input id="clipPitch" type="range" min="-12" max="12" step="1" value="0" />
           <span id="clipPitchVal" class="muted">0 st</span>
         </div>
         <div class="effect-row">
-          <button id="clipFxApply" class="btn">Apply Stretch</button>
-          <button id="clipFxReset" class="btn">Reset Clip FX</button>
+          <button id="clipFxApply" class="btn" data-i18n="fx.applyStretch">Apply Stretch</button>
+          <button id="clipFxReset" class="btn" data-i18n="fx.resetClip">Reset Clip FX</button>
         </div>
-        <div class="hint muted">Time Stretch is granular and keeps pitch. Pitch shifts by resampling.</div>
+        <div class="hint muted" data-i18n="fx.clipHint">Time Stretch is granular and keeps pitch. Pitch shifts by resampling.</div>
       </div>
       <div class="effects-section">
-        <div class="panel-title">Track FX (Selected Track)</div>
+        <div class="panel-title" data-i18n="fx.trackTitle">Track FX (Selected Track)</div>
         <div class="effect-row">
-          <label><input id="fxDelayOn" type="checkbox" /> Delay</label>
+          <label><input id="fxDelayOn" type="checkbox" /> <span data-i18n="fx.delay">Delay</span></label>
           <input id="fxDelayTime" type="range" min="0" max="0.8" step="0.01" value="0.2" />
           <input id="fxDelayFeedback" type="range" min="0" max="0.9" step="0.01" value="0.3" />
           <input id="fxDelayMix" type="range" min="0" max="1" step="0.01" value="0.25" />
         </div>
         <div class="effect-row">
-          <label><input id="fxReverbOn" type="checkbox" /> Reverb</label>
+          <label><input id="fxReverbOn" type="checkbox" /> <span data-i18n="fx.reverb">Reverb</span></label>
           <input id="fxReverbMix" type="range" min="0" max="1" step="0.01" value="0.2" />
         </div>
         <div class="effect-row">
-          <label><input id="fxSatOn" type="checkbox" /> Saturation</label>
+          <label><input id="fxSatOn" type="checkbox" /> <span data-i18n="fx.saturation">Saturation</span></label>
           <input id="fxSatDrive" type="range" min="0" max="1" step="0.01" value="0.2" />
         </div>
         <div class="effect-row">
-          <label><input id="fxCompOn" type="checkbox" /> Compressor</label>
+          <label><input id="fxCompOn" type="checkbox" /> <span data-i18n="fx.compressor">Compressor</span></label>
           <input id="fxCompThreshold" type="range" min="-60" max="0" step="1" value="-18" />
           <input id="fxCompRatio" type="range" min="1" max="20" step="0.5" value="4" />
         </div>
@@ -205,20 +205,20 @@
 
     <div id="settingsHud" class="hud hidden">
       <div class="hud-header">
-        <div class="hud-title">M3 Settings</div>
+        <div class="hud-title" data-i18n="hud.title">M3 Settings</div>
         <button id="closeHud" class="btn">Close</button>
       </div>
       <div class="hud-grid">
-      <label>BPM
+      <label><span data-i18n="hud.bpm">BPM</span>
         <input id="bpmInput" type="number" min="40" max="220" value="120" />
       </label>
-      <label>Snap to Beat
+      <label><span data-i18n="hud.snap">Snap to Beat</span>
         <input id="snapToggle" type="checkbox" checked />
       </label>
-      <label>Auto-Scroll
+      <label><span data-i18n="hud.follow">Auto-Scroll</span>
         <input id="followToggle" type="checkbox" checked />
       </label>
-      <label>Beat Grid
+      <label><span data-i18n="hud.grid">Beat Grid</span>
         <select id="gridSelect">
           <option value="1">1/1</option>
           <option value="2">1/2</option>
@@ -228,127 +228,51 @@
         </select>
       </label>
       <input id="analysisUrl" type="hidden" />
-      <label>Metronome
+      <label><span data-i18n="hud.metro">Metronome</span>
         <input id="metroToggle" type="checkbox" />
       </label>
-      <label>FX Intensity
+      <label><span data-i18n="hud.fxIntensity">FX Intensity</span>
         <input id="fxIntensity" type="range" min="0" max="100" value="35" />
       </label>
-      <label>Screen Noise
+      <label><span data-i18n="hud.fxNoise">Screen Noise</span>
         <input id="fxNoiseToggle" type="checkbox" checked />
       </label>
-      <label>Frame Glow
+      <label><span data-i18n="hud.fxGlow">Frame Glow</span>
         <input id="fxGlowToggle" type="checkbox" checked />
       </label>
-      <label>Zoom
+      <label><span data-i18n="hud.zoom">Zoom</span>
         <input id="zoomHud" type="range" min="5" max="100000" value="120" />
+      </label>
+      <label><span data-i18n="hud.lang">Language</span>
+        <select id="languageSelect">
+          <option value="en">English</option>
+          <option value="zh">简体中文</option>
+          <option value="id">Bahasa Indonesia</option>
+          <option value="ms">Bahasa Malaysia</option>
+          <option value="ko">한국어</option>
+        </select>
       </label>
       <input id="zoom" type="range" min="5" max="100000" value="120" class="hidden" />
       </div>
-      <div class="hud-hint">
+      <div class="hud-hint" data-i18n="hud.hint">
         Hotkeys: Space Play/Pause · S Split · D Duplicate · Del Delete · +/- Zoom
       </div>
       <div class="hud-guide">
         <details>
-          <summary>Desktop Guide</summary>
-          <div class="guide-text">
-            Import audio, click a clip to select, drag to move. Right-click for split/duplicate/analyze or selection effects.
-            Use the bottom tabs to switch panels. Scroll the timeline to add more space.
-            <div class="guide-section">
-              <strong>Timeline + Selection</strong>
-              <div>Alt + drag: create a range selection</div>
-              <div>/ : toggle range selector visibility</div>
-              <div>Shift + click: place playhead without snapping</div>
-              <div>Drag on empty timeline: pan view</div>
-              <div>Space + drag: pan view (grab)</div>
-              <div>Shift + mouse wheel: zoom timeline</div>
-              <div>Ctrl + wheel: horizontal scroll (timeline) / scroll panels under cursor</div>
-            </div>
-            <div class="guide-section">
-              <strong>Transport</strong>
-              <div>Space: play/pause</div>
-              <div>, : jump to start</div>
-            </div>
-            <div class="guide-section">
-              <strong>Clips</strong>
-              <div>S: split at playhead</div>
-              <div>D: duplicate</div>
-              <div>Delete / Backspace: delete</div>
-              <div>Ctrl + X: cut</div>
-              <div>Ctrl + V: paste at playhead</div>
-              <div>Ctrl + ← / →: select previous/next clip on track</div>
-              <div>Alt + ← / →: nudge clip by grid</div>
-              <div>Alt + Shift + ← / →: fine nudge (0.01s)</div>
-              <div>Alt + ↑ / ↓: move clip to track above/below</div>
-            </div>
-            <div class="guide-section">
-              <strong>Tracks</strong>
-              <div>↑ / ↓: select track</div>
-            </div>
-            <div class="guide-section">
-              <strong>Edit History</strong>
-              <div>Ctrl + Z: undo</div>
-              <div>Ctrl + Shift + Z or Ctrl + Y: redo</div>
-            </div>
-            <div class="guide-section">
-              <strong>Project Save/Load</strong>
-              <div>Project tab → Save Project File (exports .m3proj)</div>
-              <div>Project tab → Save to Browser (local)</div>
-              <div>Load Project File prompts relink if audio is missing</div>
-            </div>
-            <div class="guide-section">
-              <strong>Effects</strong>
-              <div>Effects tab → fade selection / track FX</div>
-              <div>Right‑click with range active shows selection effects</div>
-            </div>
-            <div class="guide-section">
-              <strong>Selection Effects</strong>
-              <div>Alt + drag to define a range, then use Effects tab or right‑click</div>
-              <div>Fade In/Out affects only the selected range (clips auto‑split)</div>
-              <div>Crossfade applies fade‑in + fade‑out on the selection boundaries</div>
-            </div>
-            <div class="guide-section">
-              <strong>Clip FX</strong>
-              <div>Time Stretch: granular, preserves pitch (Apply to bake)</div>
-              <div>Pitch: semitone shift (resampling)</div>
-              <div>Reset Clip FX restores original buffer</div>
-            </div>
-            <div class="guide-section">
-              <strong>Track FX</strong>
-              <div>Delay: time/feedback/mix</div>
-              <div>Reverb: mix</div>
-              <div>Saturation: drive</div>
-              <div>Compressor: threshold/ratio</div>
-              <div>Track FX apply in playback and export</div>
-            </div>
-            <div class="guide-section">
-              <strong>Relink Flow</strong>
-              <div>If a project loads without audio, the Relink window appears</div>
-              <div>Select the original audio files to restore clips</div>
-            </div>
-          </div>
+          <summary data-i18n="guide.desktop.title">Desktop Guide</summary>
+          <div class="guide-text" id="desktopGuideText"></div>
         </details>
         <details>
-          <summary>Mobile Guide</summary>
-          <div class="guide-text">
-            Pinch to zoom the timeline, drag to pan. Tap the M3 Menu bar to open/close the drawer.
-            Use bottom tabs for Audio/Tracks/Mixer/Project/Actions/Effects.
-            <div class="guide-section">
-              <strong>Gestures</strong>
-              <div>Pinch: zoom timeline</div>
-              <div>Drag: pan timeline</div>
-              <div>Tap clip: select</div>
-              <div>Tap empty grid: move playhead</div>
-            </div>
-          </div>
+          <summary data-i18n="guide.mobile.title">Mobile Guide</summary>
+          <div class="guide-text" id="mobileGuideText"></div>
         </details>
       </div>
     </div>
 
-  <div id="analysisOverlay" class="overlay hidden">
+      <div id="analysisOverlay" class="overlay hidden">
     <div class="overlay-card">
-      <div class="overlay-title">Analyzing BPM + Key…</div>
-      <div class="overlay-sub">This can take a few seconds on longer files.</div>
+      <div class="overlay-title" data-i18n="overlay.analyzeTitle">Analyzing BPM + Key…</div>
+      <div class="overlay-sub" data-i18n="overlay.analyzeSub">This can take a few seconds on longer files.</div>
       <div class="progress">
         <div id="analysisProgress" class="progress-bar"></div>
       </div>
@@ -357,39 +281,39 @@
 
   <div id="effectOverlay" class="overlay hidden">
     <div class="overlay-card effect-card">
-      <div class="overlay-title" id="effectTitle">Apply Effect</div>
-      <div class="overlay-sub">Applies to the current selection range.</div>
+      <div class="overlay-title" id="effectTitle" data-i18n="overlay.effectTitle">Apply Effect</div>
+      <div class="overlay-sub" data-i18n="overlay.effectSub">Applies to the current selection range.</div>
       <div class="hud-grid effect-grid">
-        <label>Effect
+        <label><span data-i18n="overlay.effect">Effect</span>
           <select id="effectType">
             <option value="fadeIn">Fade In</option>
             <option value="fadeOut">Fade Out</option>
             <option value="crossfade">Crossfade</option>
           </select>
         </label>
-        <label>Duration (sec)
+        <label><span data-i18n="overlay.duration">Duration (sec)</span>
           <input id="effectDuration" type="number" min="0.05" step="0.05" value="0.5" />
         </label>
-        <label>Curve
+        <label><span data-i18n="overlay.curve">Curve</span>
           <input id="effectCurve" type="range" min="0" max="1" step="0.01" value="0.5" />
         </label>
       </div>
       <div class="effect-actions">
-        <button id="effectApply" class="btn primary">Apply</button>
-        <button id="effectCancel" class="btn">Cancel</button>
+        <button id="effectApply" class="btn primary" data-i18n="btn.apply">Apply</button>
+        <button id="effectCancel" class="btn" data-i18n="btn.cancel">Cancel</button>
       </div>
     </div>
   </div>
 
   <div id="relinkOverlay" class="overlay hidden">
     <div class="overlay-card effect-card">
-      <div class="overlay-title">Relink Audio Files</div>
-      <div class="overlay-sub">Some clips are missing audio. Select the original files to relink.</div>
+      <div class="overlay-title" data-i18n="overlay.relinkTitle">Relink Audio Files</div>
+      <div class="overlay-sub" data-i18n="overlay.relinkSub">Some clips are missing audio. Select the original files to relink.</div>
       <div id="relinkList" class="relink-list"></div>
       <input id="relinkInput" type="file" multiple accept="audio/*" />
       <div class="effect-actions">
-        <button id="relinkApply" class="btn primary">Relink</button>
-        <button id="relinkSkip" class="btn">Skip Missing</button>
+        <button id="relinkApply" class="btn primary" data-i18n="btn.relink">Relink</button>
+        <button id="relinkSkip" class="btn" data-i18n="btn.skipMissing">Skip Missing</button>
       </div>
     </div>
   </div>
