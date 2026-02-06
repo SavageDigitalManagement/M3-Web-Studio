@@ -1022,7 +1022,10 @@ function stopMetronome() {
   }
 }
 
-fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
+fileInput.addEventListener("change", async (e) => {
+  await handleFiles(e.target.files);
+  e.target.value = "";
+});
 addTrackBtn.addEventListener("click", () => addTrack());
 zoom.addEventListener("input", () => {
   state.pxPerSec = parseInt(zoom.value, 10);
@@ -1549,7 +1552,8 @@ exportBtn.addEventListener("click", async () => {
 });
 
 async function exportWavMix() {
-  const maxEnd = Math.max(0, ...state.tracks.flatMap(t => t.clips.map(c => c.start + getClipDuration(c))));
+  const liveClips = state.tracks.flatMap(t => t.clips.filter(c => c.buffer && c.duration > 0));
+  const maxEnd = Math.max(0, ...liveClips.map(c => c.start + getClipDuration(c)));
   if (maxEnd <= 0) return;
   const useRange = state.rangeVisible && state.rangeEnd > state.rangeStart;
   const exportStart = useRange ? state.rangeStart : 0;
@@ -1566,7 +1570,7 @@ async function exportWavMix() {
     if (soloTracks.length && !track.solo) return;
     if (track.mute) return;
 
-    track.clips.forEach((clip) => {
+    track.clips.filter(c => c.buffer && c.duration > 0).forEach((clip) => {
       const clipDuration = getClipDuration(clip);
       const clipStart = clip.start;
       const clipEnd = clip.start + clipDuration;
@@ -1628,7 +1632,8 @@ async function exportWavMix() {
 }
 
 async function exportCompressed(format) {
-  const maxEnd = Math.max(0, ...state.tracks.flatMap(t => t.clips.map(c => c.start + getClipDuration(c))));
+  const liveClips = state.tracks.flatMap(t => t.clips.filter(c => c.buffer && c.duration > 0));
+  const maxEnd = Math.max(0, ...liveClips.map(c => c.start + getClipDuration(c)));
   if (maxEnd <= 0) return;
   const useRange = state.rangeVisible && state.rangeEnd > state.rangeStart;
   const exportStart = useRange ? state.rangeStart : 0;
@@ -1643,7 +1648,7 @@ async function exportCompressed(format) {
     if (soloTracks.length && !track.solo) return;
     if (track.mute) return;
 
-    track.clips.forEach((clip) => {
+    track.clips.filter(c => c.buffer && c.duration > 0).forEach((clip) => {
       const clipDuration = getClipDuration(clip);
       const clipStart = clip.start;
       const clipEnd = clip.start + clipDuration;
