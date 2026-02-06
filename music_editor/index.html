@@ -28,9 +28,11 @@
           <input id="fileInput" type="file" accept="audio/*" multiple />
           Import Audio
         </label>
-        <input id="ytUrl" type="text" class="btn" placeholder="YouTube URL" />
-        <button id="ripSelectedBtn" class="btn">Rip → Selected</button>
-        <button id="ripNewBtn" class="btn">Rip → New Track</button>
+        <div class="hidden">
+          <input id="ytUrl" type="text" class="btn" placeholder="YouTube URL" />
+          <button id="ripSelectedBtn" class="btn">Rip → Selected</button>
+          <button id="ripNewBtn" class="btn">Rip → New Track</button>
+        </div>
         <select id="exportFormat" class="btn">
           <option value="wav">Export WAV</option>
           <option value="webm">Export WebM (Opus)</option>
