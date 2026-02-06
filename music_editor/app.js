@@ -7,7 +7,8 @@ const timeReadout = document.getElementById("timeReadout");
 const barBeatReadout = document.getElementById("barBeatReadout");
 const projectLen = document.getElementById("projectLen");
 const tempoValue = document.getElementById("tempoValue");
-const mixer = document.getElementById("mixer");
+const mixerSidebar = document.getElementById("mixerSidebar");
+const mixerPanel = document.getElementById("mixerPanel");
 const zoom = document.getElementById("zoom");
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsHud = document.getElementById("settingsHud");
@@ -215,7 +216,8 @@ function getClipDuration(clip) {
 
 function render() {
   trackArea.innerHTML = "";
-  mixer.innerHTML = "";
+  mixerSidebar.innerHTML = "";
+  mixerPanel.innerHTML = "";
   trackArea.style.minHeight = `${state.timelineHeight}px`;
 
   const maxEnd = Math.max(
@@ -289,38 +291,43 @@ function render() {
     trackArea.appendChild(row);
 
     // Mixer
-    const mix = document.createElement("div");
-    mix.className = "mixer-track";
-    mix.innerHTML = `
-      <div class="title">${track.name}</div>
-      <div class="mixer-controls">
-        <button class="mute ${track.mute ? "active" : ""}">M</button>
-        <button class="solo ${track.solo ? "active" : ""}">S</button>
-        <input type="range" min="0" max="1" step="0.01" value="${track.volume}">
-      </div>
-    `;
+    const buildMix = () => {
+      const mix = document.createElement("div");
+      mix.className = "mixer-track";
+      mix.innerHTML = `
+        <div class="title">${track.name}</div>
+        <div class="mixer-controls">
+          <button class="mute ${track.mute ? "active" : ""}">M</button>
+          <button class="solo ${track.solo ? "active" : ""}">S</button>
+          <input type="range" min="0" max="1" step="0.01" value="${track.volume}">
+        </div>
+      `;
 
-    const [muteBtn, soloBtn] = mix.querySelectorAll("button");
-    const vol = mix.querySelector("input");
+      const [muteBtn, soloBtn] = mix.querySelectorAll("button");
+      const vol = mix.querySelector("input");
 
-    muteBtn.addEventListener("click", () => {
-      track.mute = !track.mute;
-      if (state.playing) refreshPlayback();
-      render();
-    });
+      muteBtn.addEventListener("click", () => {
+        track.mute = !track.mute;
+        if (state.playing) refreshPlayback();
+        render();
+      });
 
-    soloBtn.addEventListener("click", () => {
-      track.solo = !track.solo;
-      if (state.playing) refreshPlayback();
-      render();
-    });
+      soloBtn.addEventListener("click", () => {
+        track.solo = !track.solo;
+        if (state.playing) refreshPlayback();
+        render();
+      });
 
-    vol.addEventListener("input", () => {
-      track.volume = parseFloat(vol.value);
-      if (state.playing) refreshPlayback();
-    });
+      vol.addEventListener("input", () => {
+        track.volume = parseFloat(vol.value);
+        if (state.playing) refreshPlayback();
+      });
 
-    mixer.appendChild(mix);
+      return mix;
+    };
+
+    mixerSidebar.appendChild(buildMix());
+    mixerPanel.appendChild(buildMix());
   });
 
   const selected = findSelectedClip();
@@ -339,11 +346,18 @@ function render() {
   }
 
   renderRuler(maxEnd);
+  updateCursorHeight();
 
   if (tabMixer.classList.contains("active")) {
     const track = getSelectedTrack();
     if (track) renderEqControls(track);
   }
+}
+
+function updateCursorHeight() {
+  const height = Math.max(trackArea.scrollHeight, state.timelineHeight) - 32;
+  playhead.style.height = `${Math.max(0, height)}px`;
+  ghosthead.style.height = `${Math.max(0, height)}px`;
 }
 
 function renderRuler(lengthSec) {
@@ -1287,11 +1301,23 @@ let isPanning = false;
 let spaceDown = false;
 let panStart = { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 };
 let touchState = null;
+let panCandidate = null;
+let suppressClick = false;
 
 timeline.addEventListener("mousedown", (e) => {
-  if (!spaceDown) return;
-  isPanning = true;
-  panStart = {
+  if (e.button !== 0) return;
+  if (e.target.closest(".clip")) return;
+  if (spaceDown) {
+    isPanning = true;
+    panStart = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: timeline.scrollLeft,
+      scrollTop: timeline.scrollTop
+    };
+    return;
+  }
+  panCandidate = {
     x: e.clientX,
     y: e.clientY,
     scrollLeft: timeline.scrollLeft,
@@ -1366,6 +1392,17 @@ document.addEventListener("keyup", (e) => {
 });
 
 document.addEventListener("mousemove", (e) => {
+  if (panCandidate && !isPanning) {
+    const dx = e.clientX - panCandidate.x;
+    const dy = e.clientY - panCandidate.y;
+    if (Math.hypot(dx, dy) > 4) {
+      isPanning = true;
+      panStart = panCandidate;
+      panCandidate = null;
+      suppressClick = true;
+      document.body.classList.add("dragging");
+    }
+  }
   if (!isPanning) return;
   timeline.scrollLeft = panStart.scrollLeft - (e.clientX - panStart.x);
   timeline.scrollTop = panStart.scrollTop - (e.clientY - panStart.y);
@@ -1373,6 +1410,8 @@ document.addEventListener("mousemove", (e) => {
 
 document.addEventListener("mouseup", () => {
   isPanning = false;
+  panCandidate = null;
+  document.body.classList.remove("dragging");
 });
 
 timeline.addEventListener("scroll", () => {
@@ -1386,6 +1425,7 @@ timeline.addEventListener("scroll", () => {
   if (scrollBottom > state.timelineHeight - 300) {
     state.timelineHeight += 600;
     trackArea.style.minHeight = `${state.timelineHeight}px`;
+    updateCursorHeight();
   }
 });
 
@@ -1457,7 +1497,6 @@ let resizing = false;
 let resizeStart = 0;
 let resizeHeight = 240;
 let panelCollapsed = false;
-let menuCollapsed = false;
 
 function setBottomHeight(px) {
   const clamped = Math.max(180, Math.min(420, px));
@@ -1498,11 +1537,7 @@ document.addEventListener("mouseup", () => {
 setBottomHeight(240);
 applyPanelState();
 
-menuToggle.addEventListener("click", () => {
-  menuCollapsed = !menuCollapsed;
-  document.body.classList.toggle("menu-collapsed", menuCollapsed);
-  bottomDrawer.classList.toggle("collapsed", menuCollapsed);
-});
+menuToggle.addEventListener("click", () => {});
 
 exportBtn.addEventListener("click", async () => {
   const format = exportFormat.value;
@@ -1834,6 +1869,10 @@ trackArea.addEventListener("drop", (e) => {
 
 trackArea.addEventListener("click", (e) => {
   if (document.body.classList.contains("dragging")) return;
+  if (suppressClick) {
+    suppressClick = false;
+    return;
+  }
   if (e.target.closest(".clip")) return;
   const rect = trackArea.getBoundingClientRect();
   const x = e.clientX - rect.left + trackArea.scrollLeft;
