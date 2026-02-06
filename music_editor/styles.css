@@ -76,6 +76,10 @@ body.dragging {
   box-shadow: 0 0 10px rgba(107, 255, 184, 0.25);
 }
 
+.hidden {
+  display: none !important;
+}
+
 .file { border: 1px dashed var(--border); padding: 8px 12px; border-radius: 8px; cursor: pointer; }
 
 .file input { display: none; }
