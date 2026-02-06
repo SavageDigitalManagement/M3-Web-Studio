@@ -70,6 +70,39 @@ const effectCancel = document.getElementById("effectCancel");
 const fxFadeIn = document.getElementById("fxFadeIn");
 const fxFadeOut = document.getElementById("fxFadeOut");
 const fxCrossfade = document.getElementById("fxCrossfade");
+const saveProjectFile = document.getElementById("saveProjectFile");
+const loadProjectFile = document.getElementById("loadProjectFile");
+const projectFileInput = document.getElementById("projectFileInput");
+const includeAudioInFile = document.getElementById("includeAudioInFile");
+const saveProjectLocal = document.getElementById("saveProjectLocal");
+const loadProjectLocal = document.getElementById("loadProjectLocal");
+const clearProjectLocal = document.getElementById("clearProjectLocal");
+const projectStatus = document.getElementById("projectStatus");
+const clipRate = document.getElementById("clipRate");
+const clipPitch = document.getElementById("clipPitch");
+const clipRateVal = document.getElementById("clipRateVal");
+const clipPitchVal = document.getElementById("clipPitchVal");
+const clipFxReset = document.getElementById("clipFxReset");
+const clipFxApply = document.getElementById("clipFxApply");
+const fxDelayOn = document.getElementById("fxDelayOn");
+const fxDelayTime = document.getElementById("fxDelayTime");
+const fxDelayFeedback = document.getElementById("fxDelayFeedback");
+const fxDelayMix = document.getElementById("fxDelayMix");
+const fxReverbOn = document.getElementById("fxReverbOn");
+const fxReverbMix = document.getElementById("fxReverbMix");
+const fxSatOn = document.getElementById("fxSatOn");
+const fxSatDrive = document.getElementById("fxSatDrive");
+const fxCompOn = document.getElementById("fxCompOn");
+const fxCompThreshold = document.getElementById("fxCompThreshold");
+const fxCompRatio = document.getElementById("fxCompRatio");
+const relinkOverlay = document.getElementById("relinkOverlay");
+const relinkList = document.getElementById("relinkList");
+const relinkInput = document.getElementById("relinkInput");
+const relinkApply = document.getElementById("relinkApply");
+const relinkSkip = document.getElementById("relinkSkip");
+const fxIntensity = document.getElementById("fxIntensity");
+const fxNoiseToggle = document.getElementById("fxNoiseToggle");
+const fxGlowToggle = document.getElementById("fxGlowToggle");
 
 const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
@@ -106,6 +139,8 @@ const state = {
   playStartOffset: 0
 };
 
+let pendingProject = null;
+
 let clipboardClip = null;
 let undoStack = [];
 let redoStack = [];
@@ -125,6 +160,18 @@ function getSelectedTrack() {
   const idx = state.tracks.findIndex(t => t.id === state.selectedTrackId);
   return idx >= 0 ? state.tracks[idx] : state.tracks[0];
 }
+
+function ensureTrackEffects(track) {
+  if (!track.effects) {
+    track.effects = {
+      delay: { enabled: false, time: 0.2, feedback: 0.3, mix: 0.25 },
+      reverb: { enabled: false, mix: 0.2 },
+      saturation: { enabled: false, drive: 0.2 },
+      compressor: { enabled: false, threshold: -18, ratio: 4 }
+    };
+  }
+  return track.effects;
+}
 let metroTimer = null;
 
 function addTrack(name = `Track ${state.tracks.length + 1}`) {
@@ -137,6 +184,12 @@ function addTrack(name = `Track ${state.tracks.length + 1}`) {
     volume: 1,
     mute: false,
     solo: false,
+    effects: {
+      delay: { enabled: false, time: 0.2, feedback: 0.3, mix: 0.25 },
+      reverb: { enabled: false, mix: 0.2 },
+      saturation: { enabled: false, drive: 0.2 },
+      compressor: { enabled: false, threshold: -18, ratio: 4 }
+    },
     eq: EQ_BANDS.map(b => ({ freq: b.f, gain: 0 })),
     lowCut: 20,
     highCut: 20000
@@ -165,6 +218,9 @@ function addClipToTrack(track, buffer, name) {
     fadeIn: 0,
     fadeOut: 0,
     fadeActive: false,
+    rate: 1,
+    pitch: 0,
+    originalBuffer: null,
     fadeInCurve: 0.5,
     fadeOutCurve: 0.5,
     start: 0
@@ -276,6 +332,151 @@ function applyFades(gainNode, startTime, duration, clip) {
     gainNode.gain.setValueAtTime(1, outStart);
     gainNode.gain.setValueCurveAtTime(curve, outStart, fadeOut);
   }
+}
+
+function recomputePlaybackRate(clip) {
+  const pitch = clip.pitch ?? 0;
+  const pitchRatio = Math.pow(2, pitch / 12);
+  clip.playbackRate = pitchRatio;
+}
+
+function buildHannWindow(size) {
+  const window = new Float32Array(size);
+  for (let i = 0; i < size; i++) {
+    window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (size - 1)));
+  }
+  return window;
+}
+
+function stretchBufferGranular(buffer, ratio) {
+  const clamped = Math.max(0.5, Math.min(2, ratio));
+  if (Math.abs(clamped - 1) < 0.001) return buffer;
+  const rate = buffer.sampleRate;
+  const grainSize = Math.max(512, Math.floor(rate * 0.08));
+  const hopIn = Math.floor(grainSize * 0.5);
+  const hopOut = Math.floor(hopIn * clamped);
+  const outLength = Math.floor(buffer.length * clamped) + grainSize;
+  const outBuffer = audioCtx.createBuffer(buffer.numberOfChannels, outLength, rate);
+  const window = buildHannWindow(grainSize);
+
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const input = buffer.getChannelData(ch);
+    const output = outBuffer.getChannelData(ch);
+    let outPos = 0;
+    for (let inPos = 0; inPos + grainSize < input.length; inPos += hopIn) {
+      for (let i = 0; i < grainSize; i++) {
+        output[outPos + i] += input[inPos + i] * window[i];
+      }
+      outPos += hopOut;
+      if (outPos + grainSize >= output.length) break;
+    }
+  }
+  return outBuffer;
+}
+
+async function applyTimeStretch(clip, ratio) {
+  if (!clip) return;
+  const clamped = Math.max(0.5, Math.min(2, ratio));
+  if (Math.abs(clamped - 1) < 0.001) {
+    if (clip.originalBuffer) {
+      clip.buffer = clip.originalBuffer;
+      clip.duration = clip.buffer.duration;
+      clip.originalBuffer = null;
+      clip.rate = 1;
+      clip.startOffset = 0;
+      clip.endOffset = 0;
+    }
+    return;
+  }
+  setProjectStatus("Applying time stretch...");
+  if (!clip.originalBuffer) clip.originalBuffer = clip.buffer;
+  await new Promise(requestAnimationFrame);
+  const stretched = stretchBufferGranular(clip.originalBuffer, clamped);
+  clip.buffer = stretched;
+  clip.duration = stretched.duration;
+  clip.rate = clamped;
+  clip.startOffset = 0;
+  clip.endOffset = 0;
+  setProjectStatus("Time stretch applied.");
+}
+
+function createImpulse(ctx, seconds = 1.2, decay = 2.5) {
+  const rate = ctx.sampleRate;
+  const length = Math.floor(rate * seconds);
+  const impulse = ctx.createBuffer(2, length, rate);
+  for (let ch = 0; ch < impulse.numberOfChannels; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    }
+  }
+  return impulse;
+}
+
+function makeSaturationCurve(amount = 0.2) {
+  const k = Math.max(0.01, amount * 40);
+  const n = 1024;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / (n - 1) - 1;
+    curve[i] = (1 + k) * x / (1 + k * Math.abs(x));
+  }
+  return curve;
+}
+
+function applyTrackFxChain(ctx, inputNode, track) {
+  const fx = ensureTrackEffects(track);
+  let node = inputNode;
+
+  if (fx.saturation.enabled) {
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = makeSaturationCurve(fx.saturation.drive);
+    shaper.oversample = "4x";
+    node.connect(shaper);
+    node = shaper;
+  }
+
+  if (fx.compressor.enabled) {
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = fx.compressor.threshold;
+    comp.ratio.value = fx.compressor.ratio;
+    node.connect(comp);
+    node = comp;
+  }
+
+  if (fx.delay.enabled) {
+    const delay = ctx.createDelay(1.0);
+    delay.delayTime.value = fx.delay.time;
+    const feedback = ctx.createGain();
+    feedback.gain.value = fx.delay.feedback;
+    const wet = ctx.createGain();
+    wet.gain.value = fx.delay.mix;
+    const dry = ctx.createGain();
+    dry.gain.value = 1 - fx.delay.mix;
+    const sum = ctx.createGain();
+
+    node.connect(dry).connect(sum);
+    node.connect(delay);
+    delay.connect(feedback).connect(delay);
+    delay.connect(wet).connect(sum);
+    node = sum;
+  }
+
+  if (fx.reverb.enabled) {
+    const convolver = ctx.createConvolver();
+    convolver.buffer = createImpulse(ctx, 1.3, 2.5);
+    const wet = ctx.createGain();
+    wet.gain.value = fx.reverb.mix;
+    const dry = ctx.createGain();
+    dry.gain.value = 1 - fx.reverb.mix;
+    const sum = ctx.createGain();
+    node.connect(dry).connect(sum);
+    node.connect(convolver);
+    convolver.connect(wet).connect(sum);
+    node = sum;
+  }
+
+  return node;
 }
 
 function render() {
@@ -413,11 +614,13 @@ function render() {
     clipName.textContent = `${selected.name} · ${bpmText} · ${camText} ${keyText}`;
     drawFullWaveform(clipPreview, selected);
     updatePreviewPlayhead();
+    updateEffectsUI();
   } else {
     clipName.textContent = "No clip selected";
     const ctx = clipPreview.getContext("2d");
     ctx.clearRect(0, 0, clipPreview.width, clipPreview.height);
     updatePreviewPlayhead();
+    updateEffectsUI();
   }
 
   renderRuler(maxEnd);
@@ -433,6 +636,37 @@ function updateCursorHeight() {
   const height = Math.max(trackArea.scrollHeight, state.timelineHeight) - 32;
   playhead.style.height = `${Math.max(0, height)}px`;
   ghosthead.style.height = `${Math.max(0, height)}px`;
+}
+
+function updateEffectsUI() {
+  const clip = findSelectedClip();
+  const track = getSelectedTrack();
+  if (clip) {
+    clipRate.value = String(clip.rate ?? 1);
+    clipPitch.value = String(clip.pitch ?? 0);
+    clipRateVal.textContent = `${(clip.rate ?? 1).toFixed(2)}x`;
+    clipPitchVal.textContent = `${clip.pitch ?? 0} st`;
+  } else {
+    clipRate.value = "1";
+    clipPitch.value = "0";
+    clipRateVal.textContent = "1.00x";
+    clipPitchVal.textContent = "0 st";
+  }
+
+  if (track) {
+    const fx = ensureTrackEffects(track);
+    fxDelayOn.checked = fx.delay.enabled;
+    fxDelayTime.value = fx.delay.time;
+    fxDelayFeedback.value = fx.delay.feedback;
+    fxDelayMix.value = fx.delay.mix;
+    fxReverbOn.checked = fx.reverb.enabled;
+    fxReverbMix.value = fx.reverb.mix;
+    fxSatOn.checked = fx.saturation.enabled;
+    fxSatDrive.value = fx.saturation.drive;
+    fxCompOn.checked = fx.compressor.enabled;
+    fxCompThreshold.value = fx.compressor.threshold;
+    fxCompRatio.value = fx.compressor.ratio;
+  }
 }
 
 function renderRuler(lengthSec) {
@@ -856,7 +1090,8 @@ function scheduleSources() {
         chain = node;
       });
         chain.connect(highCut);
-        highCut.connect(clipGain).connect(gain).connect(audioCtx.destination);
+        const fxOut = applyTrackFxChain(audioCtx, highCut, track);
+        fxOut.connect(clipGain).connect(gain).connect(audioCtx.destination);
         state.activeSources.push(source);
 
         const startAt = Math.max(0, clipStart - state.playStartOffset);
@@ -910,16 +1145,20 @@ function splitClip() {
   clip.fadeOut = 0;
   clip.fadeIn = Math.min(originalFadeIn, leftDur);
 
-  const rightClip = {
-    id: crypto.randomUUID(),
-    name: clip.name + " (B)",
-    buffer: clip.buffer,
-    duration: clip.buffer.duration,
-    bpm: clip.bpm,
-    playbackRate: clip.playbackRate,
-    key: clip.key,
-    camelot: clip.camelot,
-    sourceFile: clip.sourceFile,
+    const rightClip = {
+      id: crypto.randomUUID(),
+      name: clip.name + " (B)",
+      buffer: clip.buffer,
+      duration: clip.buffer.duration,
+      bpm: clip.bpm,
+        playbackRate: clip.playbackRate,
+        rate: clip.rate ?? 1,
+        pitch: clip.pitch ?? 0,
+      rate: clip.rate ?? 1,
+      pitch: clip.pitch ?? 0,
+      key: clip.key,
+      camelot: clip.camelot,
+      sourceFile: clip.sourceFile,
     startOffset: cutOffset,
     endOffset,
     fadeIn: 0,
@@ -952,15 +1191,17 @@ function splitClipAtTime(clip, cutTime) {
   clip.fadeOut = 0;
   clip.fadeIn = Math.min(originalFadeIn, leftDur);
 
-  const rightClip = {
-    id: crypto.randomUUID(),
-    name: clip.name + " (B)",
-    buffer: clip.buffer,
-    duration: clip.buffer.duration,
-    bpm: clip.bpm,
-    playbackRate: clip.playbackRate,
-    key: clip.key,
-    camelot: clip.camelot,
+    const rightClip = {
+      id: crypto.randomUUID(),
+      name: clip.name + " (B)",
+      buffer: clip.buffer,
+      duration: clip.buffer.duration,
+      bpm: clip.bpm,
+      playbackRate: clip.playbackRate,
+      rate: clip.rate ?? 1,
+      pitch: clip.pitch ?? 0,
+      key: clip.key,
+      camelot: clip.camelot,
     sourceFile: clip.sourceFile,
     startOffset: cutOffset,
     endOffset,
@@ -1019,7 +1260,10 @@ function setClipBpm() {
   const next = parseFloat(prompt("Set clip BPM (affects playback speed):", String(current)));
   if (!Number.isFinite(next) || next <= 0) return;
   clip.bpm = next;
-  clip.playbackRate = state.bpm / next;
+  clip.rate = state.bpm / next;
+  clip.pitch = clip.pitch ?? 0;
+  recomputePlaybackRate(clip);
+  applyTimeStretch(clip, clip.rate);
   render();
   if (state.playing) refreshPlayback();
 }
@@ -1068,10 +1312,13 @@ async function analyzeSelectedClip() {
     const data = await res.json();
     clearInterval(timer);
     analysisProgress.style.width = "100%";
-    if (data.bpm) {
-      clip.bpm = Math.round(data.bpm);
-      clip.playbackRate = state.bpm / clip.bpm;
-    }
+  if (data.bpm) {
+    clip.bpm = Math.round(data.bpm);
+    clip.rate = state.bpm / clip.bpm;
+    clip.pitch = clip.pitch ?? 0;
+    recomputePlaybackRate(clip);
+    applyTimeStretch(clip, clip.rate);
+  }
     clip.key = data.key || clip.key;
     clip.camelot = data.camelot || clip.camelot;
     render();
@@ -1247,6 +1494,222 @@ function applySelectionEffect() {
   render();
   if (state.playing) refreshPlayback();
   closeEffectModal();
+}
+
+function setProjectStatus(msg) {
+  if (projectStatus) projectStatus.textContent = msg;
+}
+
+function showRelinkModal(project, missingNames) {
+  pendingProject = project;
+  relinkList.innerHTML = missingNames.map(n => `<div>• ${n}</div>`).join("");
+  relinkOverlay.classList.remove("hidden");
+}
+
+function hideRelinkModal() {
+  relinkOverlay.classList.add("hidden");
+  relinkInput.value = "";
+}
+
+function findMissingSources(project) {
+  const missing = new Set();
+  for (const t of project.tracks || []) {
+    for (const c of t.clips || []) {
+      if (!c.audioData && c.sourceName) missing.add(c.sourceName);
+    }
+  }
+  return Array.from(missing);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function bufferToWavDataUrl(buffer) {
+  const wav = encodeWav(buffer);
+  const blob = new Blob([wav], { type: "audio/wav" });
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to encode audio"));
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function serializeProject(includeAudio) {
+  const project = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    bpm: state.bpm,
+    grid: state.grid,
+    pxPerSec: state.pxPerSec,
+    timelineLen: state.timelineLen,
+    timelineHeight: state.timelineHeight,
+    rangeVisible: state.rangeVisible,
+    rangeStart: state.rangeStart,
+    rangeEnd: state.rangeEnd,
+    tracks: []
+  };
+
+  for (const track of state.tracks) {
+      const t = {
+        id: track.id,
+        name: track.name,
+        volume: track.volume,
+        mute: track.mute,
+        solo: track.solo,
+        effects: ensureTrackEffects(track),
+        eq: track.eq,
+        lowCut: track.lowCut,
+        highCut: track.highCut,
+        clips: []
+      };
+
+    for (const clip of track.clips) {
+      const c = {
+        id: clip.id,
+        name: clip.name,
+        start: clip.start,
+        startOffset: clip.startOffset || 0,
+        endOffset: clip.endOffset || 0,
+        fadeIn: clip.fadeIn || 0,
+        fadeOut: clip.fadeOut || 0,
+          fadeInCurve: clip.fadeInCurve ?? 0.5,
+          fadeOutCurve: clip.fadeOutCurve ?? 0.5,
+          fadeActive: clip.fadeActive || false,
+          rate: clip.rate ?? 1,
+          pitch: clip.pitch ?? 0,
+          bpm: clip.bpm,
+          playbackRate: clip.playbackRate,
+        key: clip.key,
+        camelot: clip.camelot,
+        sourceName: clip.sourceFile?.name || null,
+        sourceType: clip.sourceFile?.type || null,
+        audioData: null
+      };
+
+      if (includeAudio) {
+        if (clip.sourceFile) {
+          c.audioData = await readFileAsDataUrl(clip.sourceFile);
+        } else if (clip.buffer) {
+          c.audioData = await bufferToWavDataUrl(clip.buffer);
+          c.sourceType = "audio/wav";
+        }
+      }
+
+      t.clips.push(c);
+    }
+    project.tracks.push(t);
+  }
+
+  return project;
+}
+
+async function loadProject(project, relinkFiles = [], allowMissing = false) {
+  stop();
+  state.tracks = [];
+  state.selectedClipId = null;
+  state.selectedTrackId = null;
+  state.bpm = project.bpm || 120;
+  state.grid = project.grid || 4;
+  state.pxPerSec = project.pxPerSec || 120;
+  state.timelineLen = project.timelineLen || 600;
+  state.timelineHeight = project.timelineHeight || 900;
+  state.rangeVisible = project.rangeVisible || false;
+  state.rangeStart = project.rangeStart || 0;
+  state.rangeEnd = project.rangeEnd || 0;
+  bpmInput.value = String(state.bpm);
+  tempoValue.textContent = String(state.bpm);
+  zoom.value = state.pxPerSec;
+  zoomHud.value = state.pxPerSec;
+  gridSelect.value = String(state.grid);
+
+  if (!relinkFiles.length && !allowMissing) {
+    const missing = findMissingSources(project);
+    if (missing.length) {
+      showRelinkModal(project, missing);
+      return;
+    }
+  }
+
+  const fileMap = new Map();
+  relinkFiles.forEach(f => fileMap.set(f.name, f));
+
+  for (const t of project.tracks || []) {
+    const track = {
+      id: t.id || crypto.randomUUID(),
+      name: t.name || "Track",
+      clips: [],
+      volume: t.volume ?? 1,
+      mute: t.mute ?? false,
+      solo: t.solo ?? false,
+      effects: t.effects || {
+        delay: { enabled: false, time: 0.2, feedback: 0.3, mix: 0.25 },
+        reverb: { enabled: false, mix: 0.2 },
+        saturation: { enabled: false, drive: 0.2 },
+        compressor: { enabled: false, threshold: -18, ratio: 4 }
+      },
+      eq: t.eq || EQ_BANDS.map(b => ({ freq: b.f, gain: 0 })),
+      lowCut: t.lowCut ?? 20,
+      highCut: t.highCut ?? 20000
+    };
+
+    for (const c of t.clips || []) {
+      let buffer = null;
+      let sourceFile = null;
+      if (c.audioData) {
+        const res = await fetch(c.audioData);
+        const arrayBuffer = await res.arrayBuffer();
+        buffer = await audioCtx.decodeAudioData(arrayBuffer);
+        sourceFile = new File([arrayBuffer], c.sourceName || "audio.wav", { type: c.sourceType || "audio/wav" });
+      } else if (c.sourceName && fileMap.has(c.sourceName)) {
+        const file = fileMap.get(c.sourceName);
+        const arrayBuffer = await file.arrayBuffer();
+        buffer = await audioCtx.decodeAudioData(arrayBuffer);
+        sourceFile = file;
+      }
+
+      if (!buffer) continue;
+
+        const clip = {
+          id: c.id || crypto.randomUUID(),
+          name: c.name || "Clip",
+          buffer,
+          duration: buffer.duration,
+          bpm: c.bpm || state.bpm,
+          playbackRate: c.playbackRate || 1,
+        key: c.key || null,
+        camelot: c.camelot || null,
+        sourceFile,
+        startOffset: c.startOffset || 0,
+        endOffset: c.endOffset || 0,
+        fadeIn: c.fadeIn || 0,
+        fadeOut: c.fadeOut || 0,
+          fadeInCurve: c.fadeInCurve ?? 0.5,
+          fadeOutCurve: c.fadeOutCurve ?? 0.5,
+          fadeActive: c.fadeActive || false,
+          rate: c.rate ?? 1,
+          pitch: c.pitch ?? 0,
+          start: c.start || 0
+        };
+        recomputePlaybackRate(clip);
+      track.clips.push(clip);
+    }
+
+    state.tracks.push(track);
+  }
+
+  if (state.tracks.length) {
+    state.selectedTrackId = state.tracks[0].id;
+    if (state.tracks[0].clips.length) state.selectedClipId = state.tracks[0].clips[0].id;
+  }
+  render();
+  setProjectStatus("Project loaded.");
 }
 
 function sliceBuffer(buffer, startSec, durationSec) {
@@ -1783,6 +2246,242 @@ effectOverlay.addEventListener("click", (e) => {
   if (e.target === effectOverlay) closeEffectModal();
 });
 
+document.addEventListener("click", (e) => {
+  const target = e.target.closest(".btn, .tab, .file, .clip, .panel, .mixer-track");
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height) * 1.2;
+  const ripple = document.createElement("span");
+  ripple.className = "ripple";
+  ripple.style.width = `${size}px`;
+  ripple.style.height = `${size}px`;
+  ripple.style.left = `${e.clientX - rect.left - size / 2}px`;
+  ripple.style.top = `${e.clientY - rect.top - size / 2}px`;
+  target.appendChild(ripple);
+  ripple.addEventListener("animationend", () => ripple.remove());
+});
+
+clipRate.addEventListener("input", () => {
+  const clip = findSelectedClip();
+  if (!clip) return;
+  clip.rate = parseFloat(clipRate.value);
+  clipRateVal.textContent = `${clip.rate.toFixed(2)}x`;
+});
+
+clipPitch.addEventListener("input", () => {
+  const clip = findSelectedClip();
+  if (!clip) return;
+  clip.pitch = parseInt(clipPitch.value, 10);
+  recomputePlaybackRate(clip);
+  clipPitchVal.textContent = `${clip.pitch} st`;
+  if (state.playing) refreshPlayback();
+});
+
+clipFxApply.addEventListener("click", async () => {
+  const clip = findSelectedClip();
+  if (!clip) return;
+  await applyTimeStretch(clip, clip.rate ?? 1);
+  render();
+  if (state.playing) refreshPlayback();
+});
+
+clipFxReset.addEventListener("click", () => {
+  const clip = findSelectedClip();
+  if (!clip) return;
+  clip.rate = 1;
+  clip.pitch = 0;
+  applyTimeStretch(clip, 1);
+  recomputePlaybackRate(clip);
+  updateEffectsUI();
+  if (state.playing) refreshPlayback();
+});
+
+function bindTrackFxToggle(input, setter) {
+  input.addEventListener("change", () => {
+    const track = getSelectedTrack();
+    if (!track) return;
+    setter(track);
+    if (state.playing) refreshPlayback();
+  });
+}
+
+function bindTrackFxSlider(input, setter) {
+  input.addEventListener("input", () => {
+    const track = getSelectedTrack();
+    if (!track) return;
+    setter(track);
+    if (state.playing) refreshPlayback();
+  });
+}
+
+bindTrackFxToggle(fxDelayOn, (track) => {
+  ensureTrackEffects(track).delay.enabled = fxDelayOn.checked;
+});
+bindTrackFxSlider(fxDelayTime, (track) => {
+  ensureTrackEffects(track).delay.time = parseFloat(fxDelayTime.value);
+});
+bindTrackFxSlider(fxDelayFeedback, (track) => {
+  ensureTrackEffects(track).delay.feedback = parseFloat(fxDelayFeedback.value);
+});
+bindTrackFxSlider(fxDelayMix, (track) => {
+  ensureTrackEffects(track).delay.mix = parseFloat(fxDelayMix.value);
+});
+bindTrackFxToggle(fxReverbOn, (track) => {
+  ensureTrackEffects(track).reverb.enabled = fxReverbOn.checked;
+});
+bindTrackFxSlider(fxReverbMix, (track) => {
+  ensureTrackEffects(track).reverb.mix = parseFloat(fxReverbMix.value);
+});
+bindTrackFxToggle(fxSatOn, (track) => {
+  ensureTrackEffects(track).saturation.enabled = fxSatOn.checked;
+});
+bindTrackFxSlider(fxSatDrive, (track) => {
+  ensureTrackEffects(track).saturation.drive = parseFloat(fxSatDrive.value);
+});
+bindTrackFxToggle(fxCompOn, (track) => {
+  ensureTrackEffects(track).compressor.enabled = fxCompOn.checked;
+});
+bindTrackFxSlider(fxCompThreshold, (track) => {
+  ensureTrackEffects(track).compressor.threshold = parseFloat(fxCompThreshold.value);
+});
+bindTrackFxSlider(fxCompRatio, (track) => {
+  ensureTrackEffects(track).compressor.ratio = parseFloat(fxCompRatio.value);
+});
+
+relinkApply.addEventListener("click", async () => {
+  if (!pendingProject) return;
+  const files = Array.from(relinkInput.files || []);
+  hideRelinkModal();
+  await loadProject(pendingProject, files, true);
+  pendingProject = null;
+  setProjectStatus("Relink complete.");
+});
+
+relinkSkip.addEventListener("click", async () => {
+  if (!pendingProject) return;
+  hideRelinkModal();
+  await loadProject(pendingProject, [], true);
+  pendingProject = null;
+  setProjectStatus("Loaded without missing audio.");
+});
+
+relinkOverlay.addEventListener("click", (e) => {
+  if (e.target === relinkOverlay) hideRelinkModal();
+});
+
+saveProjectFile.addEventListener("click", async () => {
+  try {
+    setProjectStatus("Saving project file...");
+    const includeAudio = includeAudioInFile?.checked ?? true;
+    const project = await serializeProject(includeAudio);
+    const blob = new Blob([JSON.stringify(project)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "m3-project.m3proj";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setProjectStatus(includeAudio ? "Project file saved (with audio)." : "Project file saved (no audio).");
+  } catch (err) {
+    setProjectStatus(`Save failed: ${err.message}`);
+  }
+});
+
+loadProjectFile.addEventListener("click", () => {
+  projectFileInput.click();
+});
+
+projectFileInput.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const project = JSON.parse(text);
+    await loadProject(project);
+  } catch (err) {
+    setProjectStatus(`Load failed: ${err.message}`);
+  } finally {
+    projectFileInput.value = "";
+  }
+});
+
+saveProjectLocal.addEventListener("click", async () => {
+  try {
+    const project = await serializeProject(false);
+    localStorage.setItem("m3_project", JSON.stringify(project));
+    setProjectStatus("Project saved to browser storage.");
+  } catch (err) {
+    setProjectStatus(`Local save failed: ${err.message}`);
+  }
+});
+
+loadProjectLocal.addEventListener("click", async () => {
+  try {
+    const raw = localStorage.getItem("m3_project");
+    if (!raw) {
+      setProjectStatus("No local project found.");
+      return;
+    }
+    const project = JSON.parse(raw);
+    await loadProject(project);
+  } catch (err) {
+    setProjectStatus(`Local load failed: ${err.message}`);
+  }
+});
+
+clearProjectLocal.addEventListener("click", () => {
+  localStorage.removeItem("m3_project");
+  setProjectStatus("Local project cleared.");
+});
+
+function initParticles() {
+  const canvas = document.getElementById("fxParticles");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  let width = 0;
+  let height = 0;
+  const count = 42;
+  const particles = Array.from({ length: count }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    r: 0.8 + Math.random() * 1.6,
+    vx: (Math.random() - 0.5) * 0.0006,
+    vy: (Math.random() - 0.5) * 0.0006,
+    hue: Math.random() > 0.5 ? 180 : 290
+  }));
+
+  function resize() {
+    width = canvas.clientWidth;
+    height = canvas.clientHeight;
+    canvas.width = Math.max(1, Math.floor(width * devicePixelRatio));
+    canvas.height = Math.max(1, Math.floor(height * devicePixelRatio));
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  }
+
+  function tick() {
+    ctx.clearRect(0, 0, width, height);
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < 0 || p.x > 1) p.vx *= -1;
+      if (p.y < 0 || p.y > 1) p.vy *= -1;
+      const x = p.x * width;
+      const y = p.y * height;
+      ctx.beginPath();
+      ctx.fillStyle = `hsla(${p.hue}, 80%, 60%, 0.35)`;
+      ctx.arc(x, y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    requestAnimationFrame(tick);
+  }
+
+  window.addEventListener("resize", resize);
+  resize();
+  tick();
+}
+
 function clampRange() {
   state.rangeStart = Math.max(0, state.rangeStart);
   state.rangeEnd = Math.max(state.rangeStart + 0.1, state.rangeEnd);
@@ -1953,7 +2652,8 @@ async function exportWavMix() {
         chain = node;
       });
       chain.connect(highCut);
-      highCut.connect(clipGain).connect(gain).connect(off.destination);
+      const fxOut = applyTrackFxChain(off, highCut, track);
+      fxOut.connect(clipGain).connect(gain).connect(off.destination);
 
       const localStart = Math.max(0, clipStart - exportStart);
       const offsetTimeline = Math.max(0, exportStart - clipStart);
@@ -2042,7 +2742,8 @@ async function exportCompressed(format) {
         chain = node;
       });
       chain.connect(highCut);
-      highCut.connect(clipGain).connect(gain).connect(dest);
+      const fxOut = applyTrackFxChain(ctx, highCut, track);
+      fxOut.connect(clipGain).connect(gain).connect(dest);
 
       const localStart = Math.max(0, clipStart - exportStart);
       const offsetTimeline = Math.max(0, exportStart - clipStart);
@@ -2244,6 +2945,9 @@ trackArea.addEventListener("drop", (e) => {
         fadeIn: 0,
         fadeOut: 0,
         fadeActive: false,
+        rate: 1,
+        pitch: 0,
+        originalBuffer: null,
         fadeInCurve: 0.5,
         fadeOutCurve: 0.5,
         start
@@ -2290,3 +2994,17 @@ trackArea.addEventListener("dblclick", (e) => {
 addTrack();
 render();
 ghosthead.style.display = "none";
+initParticles();
+
+function applyFxSettings() {
+  const intensity = (parseInt(fxIntensity.value, 10) || 0) / 100;
+  document.documentElement.style.setProperty("--fx-intensity", String(intensity));
+  document.documentElement.style.setProperty("--fx-glow-opacity", fxGlowToggle.checked ? "1" : "0");
+  document.body.classList.toggle("fx-noise-off", !fxNoiseToggle.checked);
+  document.body.classList.toggle("fx-glow-off", !fxGlowToggle.checked);
+}
+
+fxIntensity.addEventListener("input", applyFxSettings);
+fxNoiseToggle.addEventListener("change", applyFxSettings);
+fxGlowToggle.addEventListener("change", applyFxSettings);
+applyFxSettings();
