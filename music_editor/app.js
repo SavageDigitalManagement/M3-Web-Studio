@@ -72,6 +72,7 @@ const fxFadeOut = document.getElementById("fxFadeOut");
 const fxCrossfade = document.getElementById("fxCrossfade");
 const saveProjectFile = document.getElementById("saveProjectFile");
 const loadProjectFile = document.getElementById("loadProjectFile");
+const saveProjectAs = document.getElementById("saveProjectAs");
 const projectFileInput = document.getElementById("projectFileInput");
 const includeAudioInFile = document.getElementById("includeAudioInFile");
 const saveProjectLocal = document.getElementById("saveProjectLocal");
@@ -393,7 +394,7 @@ async function applyTimeStretch(clip, ratio) {
     }
     return;
   }
-  setProjectStatus("Applying time stretch...");
+    setProjectStatus(t("status.stretching", "Applying time stretch..."));
   if (!clip.originalBuffer) clip.originalBuffer = clip.buffer;
   await new Promise(requestAnimationFrame);
   const stretched = stretchBufferGranular(clip.originalBuffer, clamped);
@@ -402,7 +403,7 @@ async function applyTimeStretch(clip, ratio) {
   clip.rate = clamped;
   clip.startOffset = 0;
   clip.endOffset = 0;
-  setProjectStatus("Time stretch applied.");
+  setProjectStatus(t("status.stretchApplied", "Time stretch applied."));
 }
 
 function createImpulse(ctx, seconds = 1.2, decay = 2.5) {
@@ -1292,11 +1293,11 @@ async function analyzeSelectedClip() {
   if (!clip) return;
   const api = (analysisUrlInput.value || "").trim();
   if (!api) {
-    alert("Set the Analysis API URL in Settings first.");
+    alert(t("alert.setAnalysisUrl", "Set the Analysis API URL in Settings first."));
     return;
   }
   if (!clip.sourceFile) {
-    alert("No original file stored for this clip. Re-import it from disk.");
+    alert(t("alert.noOriginalFile", "No original file stored for this clip. Re-import it from disk."));
     return;
   }
   try {
@@ -1329,7 +1330,7 @@ async function analyzeSelectedClip() {
     clip.camelot = data.camelot || clip.camelot;
     render();
   } catch (err) {
-    alert(`Analyze failed: ${err.message}`);
+    alert(`${t("alert.analyzeFailed", "Analyze failed")}: ${err.message}`);
   } finally {
     setTimeout(() => {
       analysisOverlay.classList.add("hidden");
@@ -1443,7 +1444,7 @@ function openEffectModal(type = "fadeIn") {
   if (!effectOverlay) return;
   const hasRange = state.rangeVisible && state.rangeEnd > state.rangeStart;
   if (!hasRange) {
-    alert("Select a range first (Alt + drag).");
+    alert(t("alert.selectRange", "Select a range first (Alt + drag)."));
     return;
   }
   effectType.value = type;
@@ -1504,6 +1505,11 @@ function applySelectionEffect() {
 
 function setProjectStatus(msg) {
   if (projectStatus) projectStatus.textContent = msg;
+}
+
+function t(key, fallback = "") {
+  const dict = I18N[languageSelect?.value] || I18N.en || {};
+  return dict[key] || fallback || key;
 }
 
 function showRelinkModal(project, missingNames) {
@@ -1715,7 +1721,7 @@ async function loadProject(project, relinkFiles = [], allowMissing = false) {
     if (state.tracks[0].clips.length) state.selectedClipId = state.tracks[0].clips[0].id;
   }
   render();
-  setProjectStatus("Project loaded.");
+  setProjectStatus(t("status.projectLoaded", "Project loaded."));
 }
 
 function sliceBuffer(buffer, startSec, durationSec) {
@@ -2360,7 +2366,7 @@ relinkApply.addEventListener("click", async () => {
   hideRelinkModal();
   await loadProject(pendingProject, files, true);
   pendingProject = null;
-  setProjectStatus("Relink complete.");
+  setProjectStatus(t("status.relinkComplete", "Relink complete."));
 });
 
 relinkSkip.addEventListener("click", async () => {
@@ -2368,7 +2374,7 @@ relinkSkip.addEventListener("click", async () => {
   hideRelinkModal();
   await loadProject(pendingProject, [], true);
   pendingProject = null;
-  setProjectStatus("Loaded without missing audio.");
+  setProjectStatus(t("status.loadedWithoutAudio", "Loaded without missing audio."));
 });
 
 relinkOverlay.addEventListener("click", (e) => {
@@ -2377,7 +2383,7 @@ relinkOverlay.addEventListener("click", (e) => {
 
 saveProjectFile.addEventListener("click", async () => {
   try {
-    setProjectStatus("Saving project file...");
+    setProjectStatus(t("status.savingProject", "Saving project file..."));
     const includeAudio = includeAudioInFile?.checked ?? true;
     const project = await serializeProject(includeAudio);
     const blob = new Blob([JSON.stringify(project)], { type: "application/json" });
@@ -2389,9 +2395,33 @@ saveProjectFile.addEventListener("click", async () => {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    setProjectStatus(includeAudio ? "Project file saved (with audio)." : "Project file saved (no audio).");
+    setProjectStatus(includeAudio ? t("status.projectSavedWithAudio", "Project file saved (with audio).") : t("status.projectSavedNoAudio", "Project file saved (no audio)."));
   } catch (err) {
-    setProjectStatus(`Save failed: ${err.message}`);
+    setProjectStatus(`${t("status.saveFailed", "Save failed")}: ${err.message}`);
+  }
+});
+
+saveProjectAs.addEventListener("click", async () => {
+  try {
+    setProjectStatus(t("status.savingProject", "Saving project file..."));
+    const includeAudio = includeAudioInFile?.checked ?? true;
+    const project = await serializeProject(includeAudio);
+    const rawName = prompt(t("prompt.saveAs", "Save project as:"), "m3-project");
+    if (!rawName) return;
+    const cleaned = rawName.replace(/[^a-z0-9 _.-]/gi, "").trim() || "m3-project";
+    const filename = cleaned.toLowerCase().endsWith(".m3proj") ? cleaned : `${cleaned}.m3proj`;
+    const blob = new Blob([JSON.stringify(project)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setProjectStatus(includeAudio ? t("status.projectSavedWithAudio", "Project file saved (with audio).") : t("status.projectSavedNoAudio", "Project file saved (no audio)."));
+  } catch (err) {
+    setProjectStatus(`${t("status.saveFailed", "Save failed")}: ${err.message}`);
   }
 });
 
@@ -2407,7 +2437,7 @@ projectFileInput.addEventListener("change", async (e) => {
     const project = JSON.parse(text);
     await loadProject(project);
   } catch (err) {
-    setProjectStatus(`Load failed: ${err.message}`);
+    setProjectStatus(`${t("status.loadFailed", "Load failed")}: ${err.message}`);
   } finally {
     projectFileInput.value = "";
   }
@@ -2417,9 +2447,9 @@ saveProjectLocal.addEventListener("click", async () => {
   try {
     const project = await serializeProject(false);
     localStorage.setItem("m3_project", JSON.stringify(project));
-    setProjectStatus("Project saved to browser storage.");
+    setProjectStatus(t("status.savedLocal", "Project saved to browser storage."));
   } catch (err) {
-    setProjectStatus(`Local save failed: ${err.message}`);
+    setProjectStatus(`${t("status.localSaveFailed", "Local save failed")}: ${err.message}`);
   }
 });
 
@@ -2427,19 +2457,19 @@ loadProjectLocal.addEventListener("click", async () => {
   try {
     const raw = localStorage.getItem("m3_project");
     if (!raw) {
-      setProjectStatus("No local project found.");
+      setProjectStatus(t("status.noLocalProject", "No local project found."));
       return;
     }
     const project = JSON.parse(raw);
     await loadProject(project);
   } catch (err) {
-    setProjectStatus(`Local load failed: ${err.message}`);
+    setProjectStatus(`${t("status.localLoadFailed", "Local load failed")}: ${err.message}`);
   }
 });
 
 clearProjectLocal.addEventListener("click", () => {
   localStorage.removeItem("m3_project");
-  setProjectStatus("Local project cleared.");
+  setProjectStatus(t("status.localCleared", "Local project cleared."));
 });
 
 function initParticles() {
@@ -2590,14 +2620,17 @@ menuToggle.addEventListener("click", () => {});
 
 exportBtn.addEventListener("click", async () => {
   const format = exportFormat.value;
+  const baseName = prompt(t("prompt.exportName", "Export file name:"), "m3-export");
+  if (!baseName) return;
+  const safeName = baseName.replace(/[^a-z0-9 _.-]/gi, "").trim() || "m3-export";
   if (format === "wav") {
-    await exportWavMix();
+    await exportWavMix(safeName);
     return;
   }
-  await exportCompressed(format);
+  await exportCompressed(format, safeName);
 });
 
-async function exportWavMix() {
+async function exportWavMix(baseName) {
   const liveClips = state.tracks.flatMap(t => t.clips.filter(c => c.buffer && c.duration > 0));
   const maxEnd = Math.max(0, ...liveClips.map(c => c.start + getClipDuration(c)));
   if (maxEnd <= 0) return;
@@ -2682,14 +2715,14 @@ async function exportWavMix() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = useRange ? "m3-export-range.wav" : "m3-export.wav";
+  a.download = useRange ? `${baseName}-range.wav` : `${baseName}.wav`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
 }
 
-async function exportCompressed(format) {
+async function exportCompressed(format, baseName) {
   const liveClips = state.tracks.flatMap(t => t.clips.filter(c => c.buffer && c.duration > 0));
   const maxEnd = Math.max(0, ...liveClips.map(c => c.start + getClipDuration(c)));
   if (maxEnd <= 0) return;
@@ -2785,7 +2818,7 @@ async function exportCompressed(format) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = useRange ? `m3-export-range.${format === "ogg" ? "ogg" : "webm"}` : `m3-export.${format === "ogg" ? "ogg" : "webm"}`;
+  a.download = useRange ? `${baseName}-range.${format === "ogg" ? "ogg" : "webm"}` : `${baseName}.${format === "ogg" ? "ogg" : "webm"}`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -2839,11 +2872,11 @@ async function ripYouTube(intoNewTrack) {
   const api = (analysisUrlInput.value || "").trim();
   const url = (ytUrl.value || "").trim();
   if (!api) {
-    alert("Set the Backend API URL in Settings first.");
+    alert(t("alert.setBackendUrl", "Set the Backend API URL in Settings first."));
     return;
   }
   if (!url) {
-    alert("Paste a YouTube URL first.");
+    alert(t("alert.pasteUrl", "Paste a YouTube URL first."));
     return;
   }
   try {
@@ -2869,7 +2902,7 @@ async function ripYouTube(intoNewTrack) {
     state.selectedTrackId = track.id;
     render();
   } catch (err) {
-    alert(`Rip failed: ${err.message}`);
+    alert(`${t("alert.ripFailed", "Rip failed")}: ${err.message}`);
   }
 }
 
@@ -3064,6 +3097,9 @@ I18N = {
     "project.length": "Length",
     "project.saveFile": "Save Project File",
     "project.loadFile": "Load Project File",
+    "project.saveAs": "Save Project As…",
+    "prompt.saveAs": "Save project as:",
+    "prompt.exportName": "Export file name:",
     "project.includeAudio": "Include audio in file",
     "project.saveLocal": "Save to Browser",
     "project.loadLocal": "Load from Browser",
@@ -3102,6 +3138,28 @@ I18N = {
     "overlay.relinkTitle": "Relink Audio Files",
     "overlay.relinkSub": "Some clips are missing audio. Select the original files to relink.",
     "clip.none": "No clip selected",
+    "status.savingProject": "Saving project file...",
+    "status.projectSavedWithAudio": "Project file saved (with audio).",
+    "status.projectSavedNoAudio": "Project file saved (no audio).",
+    "status.saveFailed": "Save failed",
+    "status.loadFailed": "Load failed",
+    "status.savedLocal": "Project saved to browser storage.",
+    "status.localSaveFailed": "Local save failed",
+    "status.noLocalProject": "No local project found.",
+    "status.localLoadFailed": "Local load failed",
+    "status.localCleared": "Local project cleared.",
+    "status.projectLoaded": "Project loaded.",
+    "status.relinkComplete": "Relink complete.",
+    "status.loadedWithoutAudio": "Loaded without missing audio.",
+    "status.stretching": "Applying time stretch...",
+    "status.stretchApplied": "Time stretch applied.",
+    "alert.setAnalysisUrl": "Set the Analysis API URL in Settings first.",
+    "alert.noOriginalFile": "No original file stored for this clip. Re-import it from disk.",
+    "alert.analyzeFailed": "Analyze failed",
+    "alert.selectRange": "Select a range first (Alt + drag).",
+    "alert.setBackendUrl": "Set the Backend API URL in Settings first.",
+    "alert.pasteUrl": "Paste a YouTube URL first.",
+    "alert.ripFailed": "Rip failed",
     desktopGuide: [
       "Import audio, click a clip to select, drag to move. Right-click for split/duplicate/analyze or selection effects.",
       "Use the bottom tabs to switch panels. Scroll the timeline to add more space.",
@@ -3231,6 +3289,9 @@ I18N = {
     "project.loadLocal": "从浏览器加载",
     "project.clearLocal": "清除本地",
     "project.status": "项目默认保存在本地，导出文件可分享。",
+    "project.saveAs": "另存项目文件…",
+    "prompt.saveAs": "项目另存为：",
+    "prompt.exportName": "导出文件名：",
     "actions.hint": "选择一个片段进行编辑。拖动片段到时间线上。",
     "menu.title": "M3 菜单",
     "tab.audio": "音频",
@@ -3264,6 +3325,28 @@ I18N = {
     "overlay.relinkTitle": "重新链接音频文件",
     "overlay.relinkSub": "部分片段缺少音频，请选择原始文件重新链接。",
     "clip.none": "未选择片段",
+    "status.savingProject": "正在保存项目文件…",
+    "status.projectSavedWithAudio": "项目文件已保存（包含音频）。",
+    "status.projectSavedNoAudio": "项目文件已保存（不含音频）。",
+    "status.saveFailed": "保存失败",
+    "status.loadFailed": "加载失败",
+    "status.savedLocal": "项目已保存到浏览器。",
+    "status.localSaveFailed": "本地保存失败",
+    "status.noLocalProject": "未找到本地项目。",
+    "status.localLoadFailed": "本地加载失败",
+    "status.localCleared": "本地项目已清除。",
+    "status.projectLoaded": "项目已加载。",
+    "status.relinkComplete": "重新链接完成。",
+    "status.loadedWithoutAudio": "已加载（缺失音频）。",
+    "status.stretching": "正在应用时间拉伸…",
+    "status.stretchApplied": "时间拉伸已应用。",
+    "alert.setAnalysisUrl": "请在设置中填写分析接口地址。",
+    "alert.noOriginalFile": "没有原始文件，请重新导入。",
+    "alert.analyzeFailed": "分析失败",
+    "alert.selectRange": "请先选择范围（Alt + 拖动）。",
+    "alert.setBackendUrl": "请在设置中填写后端地址。",
+    "alert.pasteUrl": "请先粘贴 YouTube 链接。",
+    "alert.ripFailed": "抓取失败",
     desktopGuide: [
       "导入音频，点击片段选择，拖动移动。右键可切分/复制/分析或对选区应用效果。",
       "使用底部标签切换面板。滚动时间线可扩展空间。",
@@ -3388,6 +3471,9 @@ I18N = {
     "project.length": "Durasi",
     "project.saveFile": "Save Project File",
     "project.loadFile": "Load Project File",
+    "project.saveAs": "Simpan Project Sebagai…",
+    "prompt.saveAs": "Simpan project sebagai:",
+    "prompt.exportName": "Nama file eksport:",
     "project.includeAudio": "Sertakan audio di file",
     "project.saveLocal": "Save ke Browser",
     "project.loadLocal": "Load dari Browser",
@@ -3426,6 +3512,28 @@ I18N = {
     "overlay.relinkTitle": "Relink File Audio",
     "overlay.relinkSub": "Beberapa klip kehilangan audio. Pilih file asli untuk relink.",
     "clip.none": "Tidak ada klip dipilih",
+    "status.savingProject": "Menyimpan project file...",
+    "status.projectSavedWithAudio": "Project file tersimpan (dengan audio).",
+    "status.projectSavedNoAudio": "Project file tersimpan (tanpa audio).",
+    "status.saveFailed": "Save gagal",
+    "status.loadFailed": "Load gagal",
+    "status.savedLocal": "Project tersimpan di browser.",
+    "status.localSaveFailed": "Save lokal gagal",
+    "status.noLocalProject": "Tidak ada project lokal.",
+    "status.localLoadFailed": "Load lokal gagal",
+    "status.localCleared": "Project lokal dihapus.",
+    "status.projectLoaded": "Project berhasil dimuat.",
+    "status.relinkComplete": "Relink selesai.",
+    "status.loadedWithoutAudio": "Dimuat tanpa audio.",
+    "status.stretching": "Menerapkan time stretch...",
+    "status.stretchApplied": "Time stretch diterapkan.",
+    "alert.setAnalysisUrl": "Set Analysis API URL di Settings terlebih dahulu.",
+    "alert.noOriginalFile": "Tidak ada file asli. Impor ulang dari disk.",
+    "alert.analyzeFailed": "Analisis gagal",
+    "alert.selectRange": "Pilih range dulu (Alt + drag).",
+    "alert.setBackendUrl": "Set Backend API URL di Settings terlebih dahulu.",
+    "alert.pasteUrl": "Tempel URL YouTube dulu.",
+    "alert.ripFailed": "Rip gagal",
     desktopGuide: [
       "Impor audio, klik klip untuk memilih, seret untuk pindah. Klik kanan untuk split/duplicate/analyze atau efek seleksi.",
       "Pakai tab bawah untuk ganti panel. Scroll timeline untuk menambah ruang.",
@@ -3550,6 +3658,9 @@ I18N = {
     "project.length": "Panjang",
     "project.saveFile": "Save Project File",
     "project.loadFile": "Load Project File",
+    "project.saveAs": "Simpan Projek Sebagai…",
+    "prompt.saveAs": "Simpan projek sebagai:",
+    "prompt.exportName": "Nama fail eksport:",
     "project.includeAudio": "Sertakan audio dalam fail",
     "project.saveLocal": "Save ke Pelayar",
     "project.loadLocal": "Load dari Pelayar",
@@ -3588,6 +3699,28 @@ I18N = {
     "overlay.relinkTitle": "Relink Fail Audio",
     "overlay.relinkSub": "Beberapa klip tiada audio. Pilih fail asal untuk relink.",
     "clip.none": "Tiada klip dipilih",
+    "status.savingProject": "Menyimpan fail projek...",
+    "status.projectSavedWithAudio": "Fail projek disimpan (dengan audio).",
+    "status.projectSavedNoAudio": "Fail projek disimpan (tanpa audio).",
+    "status.saveFailed": "Simpan gagal",
+    "status.loadFailed": "Muat gagal",
+    "status.savedLocal": "Projek disimpan ke pelayar.",
+    "status.localSaveFailed": "Simpan lokal gagal",
+    "status.noLocalProject": "Tiada projek lokal.",
+    "status.localLoadFailed": "Muat lokal gagal",
+    "status.localCleared": "Projek lokal dipadam.",
+    "status.projectLoaded": "Projek dimuatkan.",
+    "status.relinkComplete": "Relink selesai.",
+    "status.loadedWithoutAudio": "Dimuat tanpa audio.",
+    "status.stretching": "Menerapkan time stretch...",
+    "status.stretchApplied": "Time stretch diterapkan.",
+    "alert.setAnalysisUrl": "Set Analysis API URL di Settings terlebih dahulu.",
+    "alert.noOriginalFile": "Tiada fail asal. Import semula dari disk.",
+    "alert.analyzeFailed": "Analisis gagal",
+    "alert.selectRange": "Pilih range dulu (Alt + drag).",
+    "alert.setBackendUrl": "Set Backend API URL di Settings terlebih dahulu.",
+    "alert.pasteUrl": "Tampal URL YouTube dulu.",
+    "alert.ripFailed": "Rip gagal",
     desktopGuide: [
       "Import audio, klik klip untuk pilih, seret untuk pindah. Klik kanan untuk split/duplicate/analyze atau efek pilihan.",
       "Guna tab bawah untuk tukar panel. Skrol timeline untuk tambah ruang.",
@@ -3712,6 +3845,9 @@ I18N = {
     "project.length": "길이",
     "project.saveFile": "프로젝트 파일 저장",
     "project.loadFile": "프로젝트 파일 불러오기",
+    "project.saveAs": "프로젝트 다른 이름으로 저장…",
+    "prompt.saveAs": "프로젝트 이름으로 저장:",
+    "prompt.exportName": "내보낼 파일 이름:",
     "project.includeAudio": "파일에 오디오 포함",
     "project.saveLocal": "브라우저에 저장",
     "project.loadLocal": "브라우저에서 불러오기",
@@ -3750,6 +3886,28 @@ I18N = {
     "overlay.relinkTitle": "오디오 파일 리링크",
     "overlay.relinkSub": "일부 클립에 오디오가 없습니다. 원본 파일을 선택하세요.",
     "clip.none": "선택된 클립 없음",
+    "status.savingProject": "프로젝트 파일 저장 중...",
+    "status.projectSavedWithAudio": "프로젝트 파일 저장됨(오디오 포함).",
+    "status.projectSavedNoAudio": "프로젝트 파일 저장됨(오디오 미포함).",
+    "status.saveFailed": "저장 실패",
+    "status.loadFailed": "불러오기 실패",
+    "status.savedLocal": "프로젝트가 브라우저에 저장되었습니다.",
+    "status.localSaveFailed": "로컬 저장 실패",
+    "status.noLocalProject": "로컬 프로젝트가 없습니다.",
+    "status.localLoadFailed": "로컬 불러오기 실패",
+    "status.localCleared": "로컬 프로젝트가 삭제되었습니다.",
+    "status.projectLoaded": "프로젝트가 불러와졌습니다.",
+    "status.relinkComplete": "리링크 완료.",
+    "status.loadedWithoutAudio": "오디오 없이 불러왔습니다.",
+    "status.stretching": "타임 스트레치 적용 중...",
+    "status.stretchApplied": "타임 스트레치 적용됨.",
+    "alert.setAnalysisUrl": "Settings에서 Analysis API URL을 먼저 설정하세요.",
+    "alert.noOriginalFile": "원본 파일이 없습니다. 디스크에서 다시 가져오세요.",
+    "alert.analyzeFailed": "분석 실패",
+    "alert.selectRange": "범위를 먼저 선택하세요(Alt + 드래그).",
+    "alert.setBackendUrl": "Settings에서 Backend API URL을 먼저 설정하세요.",
+    "alert.pasteUrl": "YouTube URL을 먼저 붙여넣으세요.",
+    "alert.ripFailed": "Rip 실패",
     desktopGuide: [
       "오디오를 가져온 뒤 클립을 클릭해 선택하고 드래그로 이동합니다. 우클릭으로 분할/복제/분석 또는 선택 효과.",
       "하단 탭으로 패널을 전환합니다. 타임라인을 스크롤해 공간을 늘릴 수 있습니다.",
