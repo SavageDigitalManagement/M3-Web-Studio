@@ -24,11 +24,17 @@ const analysisProgress = document.getElementById("analysisProgress");
 const timeline = document.getElementById("timeline");
 const contextMenu = document.getElementById("contextMenu");
 const tabAudio = document.getElementById("tabAudio");
+const tabTracks = document.getElementById("tabTracks");
 const tabMixer = document.getElementById("tabMixer");
+const tabProject = document.getElementById("tabProject");
+const tabActions = document.getElementById("tabActions");
 const tabEffects = document.getElementById("tabEffects");
 const panelAudio = document.getElementById("panelAudio");
 const panelMixer = document.getElementById("panelMixer");
 const panelEffects = document.getElementById("panelEffects");
+const panelTracks = document.getElementById("panelTracks");
+const panelProject = document.getElementById("panelProject");
+const panelActions = document.getElementById("panelActions");
 const clipName = document.getElementById("clipName");
 const clipPreview = document.getElementById("clipPreview");
 const previewWrap = document.getElementById("previewWrap");
@@ -51,6 +57,8 @@ const miniFollowToggle = document.getElementById("miniFollowToggle");
 const ytUrl = document.getElementById("ytUrl");
 const ripSelectedBtn = document.getElementById("ripSelectedBtn");
 const ripNewBtn = document.getElementById("ripNewBtn");
+const menuToggle = document.getElementById("menuToggle");
+const bottomDrawer = document.getElementById("bottomDrawer");
 
 const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
@@ -109,6 +117,7 @@ let metroTimer = null;
 
 function addTrack(name = `Track ${state.tracks.length + 1}`) {
   pushUndo();
+  state.timelineHeight = Math.max(state.timelineHeight, 90 * Math.max(30, state.tracks.length + 1));
   const track = {
     id: crypto.randomUUID(),
     name,
@@ -1009,30 +1018,93 @@ zoom.addEventListener("input", () => {
 
 tabAudio.addEventListener("click", () => {
   panelAudio.classList.remove("hidden");
+  panelTracks.classList.add("hidden");
   panelMixer.classList.add("hidden");
+  panelProject.classList.add("hidden");
+  panelActions.classList.add("hidden");
   panelEffects.classList.add("hidden");
   tabAudio.classList.add("active");
+  tabTracks.classList.remove("active");
   tabMixer.classList.remove("active");
+  tabProject.classList.remove("active");
+  tabActions.classList.remove("active");
+  tabEffects.classList.remove("active");
+});
+
+tabTracks.addEventListener("click", () => {
+  panelAudio.classList.add("hidden");
+  panelTracks.classList.remove("hidden");
+  panelMixer.classList.add("hidden");
+  panelProject.classList.add("hidden");
+  panelActions.classList.add("hidden");
+  panelEffects.classList.add("hidden");
+  tabAudio.classList.remove("active");
+  tabTracks.classList.add("active");
+  tabMixer.classList.remove("active");
+  tabProject.classList.remove("active");
+  tabActions.classList.remove("active");
   tabEffects.classList.remove("active");
 });
 
 tabMixer.addEventListener("click", () => {
   panelAudio.classList.add("hidden");
+  panelTracks.classList.add("hidden");
   panelMixer.classList.remove("hidden");
+  panelProject.classList.add("hidden");
+  panelActions.classList.add("hidden");
   panelEffects.classList.add("hidden");
   tabAudio.classList.remove("active");
+  tabTracks.classList.remove("active");
   tabMixer.classList.add("active");
+  tabProject.classList.remove("active");
+  tabActions.classList.remove("active");
   tabEffects.classList.remove("active");
   const track = getSelectedTrack();
   if (track) renderEqControls(track);
 });
 
+tabProject.addEventListener("click", () => {
+  panelAudio.classList.add("hidden");
+  panelTracks.classList.add("hidden");
+  panelMixer.classList.add("hidden");
+  panelProject.classList.remove("hidden");
+  panelActions.classList.add("hidden");
+  panelEffects.classList.add("hidden");
+  tabAudio.classList.remove("active");
+  tabTracks.classList.remove("active");
+  tabMixer.classList.remove("active");
+  tabProject.classList.add("active");
+  tabActions.classList.remove("active");
+  tabEffects.classList.remove("active");
+});
+
+tabActions.addEventListener("click", () => {
+  panelAudio.classList.add("hidden");
+  panelTracks.classList.add("hidden");
+  panelMixer.classList.add("hidden");
+  panelProject.classList.add("hidden");
+  panelActions.classList.remove("hidden");
+  panelEffects.classList.add("hidden");
+  tabAudio.classList.remove("active");
+  tabTracks.classList.remove("active");
+  tabMixer.classList.remove("active");
+  tabProject.classList.remove("active");
+  tabActions.classList.add("active");
+  tabEffects.classList.remove("active");
+});
+
 tabEffects.addEventListener("click", () => {
   panelAudio.classList.add("hidden");
+  panelTracks.classList.add("hidden");
   panelMixer.classList.add("hidden");
+  panelProject.classList.add("hidden");
+  panelActions.classList.add("hidden");
   panelEffects.classList.remove("hidden");
   tabAudio.classList.remove("active");
+  tabTracks.classList.remove("active");
   tabMixer.classList.remove("active");
+  tabProject.classList.remove("active");
+  tabActions.classList.remove("active");
   tabEffects.classList.add("active");
 });
 
@@ -1384,6 +1456,8 @@ document.addEventListener("mouseup", () => {
 let resizing = false;
 let resizeStart = 0;
 let resizeHeight = 240;
+let panelCollapsed = false;
+let menuCollapsed = false;
 
 function setBottomHeight(px) {
   const clamped = Math.max(180, Math.min(420, px));
@@ -1391,17 +1465,30 @@ function setBottomHeight(px) {
   resizeHeight = clamped;
 }
 
+function applyPanelState() {
+  if (panelCollapsed) {
+    document.body.classList.add("panel-collapsed");
+    document.documentElement.style.setProperty("--bottom-height", "60px");
+  } else {
+    document.body.classList.remove("panel-collapsed");
+    document.documentElement.style.setProperty("--bottom-height", `${resizeHeight}px`);
+  }
+}
+
 panelResize.addEventListener("mousedown", (e) => {
   resizing = true;
   resizeStart = e.clientY;
   const current = getComputedStyle(document.documentElement).getPropertyValue("--bottom-height").trim();
   resizeHeight = parseInt(current.replace("px", ""), 10) || 240;
+  panelCollapsed = false;
+  applyPanelState();
 });
 
 document.addEventListener("mousemove", (e) => {
   if (!resizing) return;
   const dy = resizeStart - e.clientY;
   setBottomHeight(resizeHeight + dy);
+  applyPanelState();
 });
 
 document.addEventListener("mouseup", () => {
@@ -1409,6 +1496,13 @@ document.addEventListener("mouseup", () => {
 });
 
 setBottomHeight(240);
+applyPanelState();
+
+menuToggle.addEventListener("click", () => {
+  menuCollapsed = !menuCollapsed;
+  document.body.classList.toggle("menu-collapsed", menuCollapsed);
+  bottomDrawer.classList.toggle("collapsed", menuCollapsed);
+});
 
 exportBtn.addEventListener("click", async () => {
   const format = exportFormat.value;
