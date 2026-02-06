@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #0b0f12;
   --panel: #121820;
   --panel2: #0f141a;
@@ -104,6 +104,7 @@ body.dragging {
   position: relative;
   overflow: auto;
   background: #0b1116;
+  touch-action: none;
 }
 
 .range-selector {
@@ -480,4 +481,18 @@ body.dragging {
   .timeline { order: 1; height: 60vh; }
   .topbar { grid-template-columns: 1fr; gap: 10px; }
   .tools { justify-content: flex-start; }
+}
+
+@media (max-width: 600px) {
+  .btn {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  .file { padding: 10px 12px; }
+  .bottom-tabs { gap: 6px; padding: 6px 10px; }
+  .bottom-panel { padding: 10px; }
+  .audio-preview { grid-template-columns: 1fr; }
+  .mini-controls { gap: 8px; }
+  .mini-controls .btn { flex: 1 1 120px; }
+  .toggle { width: 100%; justify-content: space-between; }
 }
