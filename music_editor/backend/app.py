@@ -135,10 +135,12 @@ def rip():
 
     out_dir = tempfile.mkdtemp(prefix="lucid_rip_")
     ydl_opts = {
-        "format": "bestaudio/best",
+        "format": "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio",
         "outtmpl": os.path.join(out_dir, "%(title).200s.%(ext)s"),
         "quiet": True,
         "noplaylist": True,
+        "postprocessors": [],
+        "prefer_ffmpeg": False,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
