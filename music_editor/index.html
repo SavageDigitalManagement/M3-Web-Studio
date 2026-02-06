@@ -28,6 +28,9 @@
           <input id="fileInput" type="file" accept="audio/*" multiple />
           Import Audio
         </label>
+        <input id="ytUrl" type="text" class="btn" placeholder="YouTube URL" />
+        <button id="ripSelectedBtn" class="btn">Rip → Selected</button>
+        <button id="ripNewBtn" class="btn">Rip → New Track</button>
         <select id="exportFormat" class="btn">
           <option value="wav">Export WAV</option>
           <option value="webm">Export WebM (Opus)</option>
@@ -147,6 +150,9 @@
           <option value="16">1/16</option>
         </select>
       </label>
+      <label>Backend API
+        <input id="analysisUrl" type="text" placeholder="http://localhost:5001" />
+      </label>
       <label>Metronome
         <input id="metroToggle" type="checkbox" />
       </label>
@@ -156,6 +162,16 @@
     </div>
     <div class="hud-hint">
       Hotkeys: Space Play/Stop · S Split · D Duplicate · Del Delete · +/- Zoom
+    </div>
+  </div>
+
+  <div id="analysisOverlay" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="overlay-title">Analyzing BPM + Key…</div>
+      <div class="overlay-sub">This can take a few seconds on longer files.</div>
+      <div class="progress">
+        <div id="analysisProgress" class="progress-bar"></div>
+      </div>
     </div>
   </div>
 
