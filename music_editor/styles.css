@@ -151,17 +151,74 @@ body.dragging {
   cursor: ew-resize;
 }
 
-.bottom-tabs {
+.bottom-drawer {
   position: fixed;
-  bottom: var(--bottom-height);
   left: 0;
   right: 0;
+  bottom: 0;
+  z-index: 15;
+  transform: translateY(0);
+  transition: transform 0.25s ease;
+}
+
+.bottom-tabs {
+  position: relative;
   display: flex;
   gap: 8px;
   padding: 8px 16px;
   background: #0b1116;
   border-top: 1px solid var(--border);
-  z-index: 15;
+}
+
+.bottom-panel {
+  position: relative;
+  height: var(--bottom-height);
+  background: #0c1318;
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
+  z-index: 14;
+}
+
+body.menu-collapsed .bottom-drawer {
+  transform: translateY(calc(100% - 44px));
+}
+
+.menu-toggle {
+  position: relative;
+  margin: 6px auto;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(178, 75, 255, 0.7);
+  background: linear-gradient(120deg, rgba(11, 17, 22, 0.95), rgba(20, 10, 30, 0.95));
+  color: #d7b6ff;
+  font-weight: 600;
+  letter-spacing: 1px;
+  box-shadow: 0 0 18px rgba(178, 75, 255, 0.5);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.menu-toggle span {
+  position: relative;
+  z-index: 1;
+}
+
+.menu-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: conic-gradient(from 0deg, transparent, rgba(178, 75, 255, 0.5), transparent);
+  animation: neonFlow 3s linear infinite;
+  z-index: 0;
+}
+
+.menu-toggle span {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes neonFlow {
+  to { transform: rotate(360deg); }
 }
 
 .tab {
@@ -176,18 +233,6 @@ body.dragging {
 .tab.active {
   color: var(--accent);
   border-color: rgba(0,229,255,0.4);
-}
-
-.bottom-panel {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: var(--bottom-height);
-  background: #0c1318;
-  border-top: 1px solid var(--border);
-  padding: 10px 16px;
-  z-index: 14;
 }
 
 .bottom-panel.hidden { display: none; }
@@ -420,7 +465,7 @@ body.dragging {
 .playhead {
   position: absolute;
   top: 32px;
-  bottom: 0;
+  bottom: -2000px;
   width: 2px;
   background: var(--accent);
   box-shadow: 0 0 12px rgba(0,229,255,0.6);
@@ -430,7 +475,7 @@ body.dragging {
 .ghosthead {
   position: absolute;
   top: 32px;
-  bottom: 0;
+  bottom: -2000px;
   width: 2px;
   background: rgba(107, 255, 184, 0.6);
   box-shadow: 0 0 10px rgba(107, 255, 184, 0.35);
