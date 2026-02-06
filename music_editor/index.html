@@ -129,7 +129,12 @@
   </div>
     <div class="bottom-panel hidden" id="panelEffects">
     <div class="panel-title">Effects</div>
-    <div class="muted">Coming next: reverb, delay, saturation, compressor.</div>
+    <div class="effects-actions">
+      <button id="fxFadeIn" class="btn">Fade In Selection…</button>
+      <button id="fxFadeOut" class="btn">Fade Out Selection…</button>
+      <button id="fxCrossfade" class="btn">Crossfade Selection…</button>
+    </div>
+    <div class="hint muted">Tip: Alt + drag on the timeline to create a selection range.</div>
   </div>
 
   </div>
@@ -167,14 +172,50 @@
       </label>
       </div>
       <div class="hud-hint">
-        Hotkeys: Space Play/Stop · S Split · D Duplicate · Del Delete · +/- Zoom
+        Hotkeys: Space Play/Pause · S Split · D Duplicate · Del Delete · +/- Zoom
       </div>
       <div class="hud-guide">
         <details>
           <summary>Desktop Guide</summary>
           <div class="guide-text">
-            Import audio, click a clip to select, drag to move. Right-click for split/duplicate/analyze.
+            Import audio, click a clip to select, drag to move. Right-click for split/duplicate/analyze or selection effects.
             Use the bottom tabs to switch panels. Scroll the timeline to add more space.
+            <div class="guide-section">
+              <strong>Timeline + Selection</strong>
+              <div>Alt + drag: create a range selection</div>
+              <div>/ : toggle range selector visibility</div>
+              <div>Shift + click: place playhead without snapping</div>
+              <div>Drag on empty timeline: pan view</div>
+              <div>Space + drag: pan view (grab)</div>
+              <div>Shift + mouse wheel: zoom timeline</div>
+              <div>Ctrl + wheel: horizontal scroll (timeline) / scroll panels under cursor</div>
+            </div>
+            <div class="guide-section">
+              <strong>Transport</strong>
+              <div>Space: play/pause</div>
+              <div>, : jump to start</div>
+            </div>
+            <div class="guide-section">
+              <strong>Clips</strong>
+              <div>S: split at playhead</div>
+              <div>D: duplicate</div>
+              <div>Delete / Backspace: delete</div>
+              <div>Ctrl + X: cut</div>
+              <div>Ctrl + V: paste at playhead</div>
+              <div>Ctrl + ← / →: select previous/next clip on track</div>
+              <div>Alt + ← / →: nudge clip by grid</div>
+              <div>Alt + Shift + ← / →: fine nudge (0.01s)</div>
+              <div>Alt + ↑ / ↓: move clip to track above/below</div>
+            </div>
+            <div class="guide-section">
+              <strong>Tracks</strong>
+              <div>↑ / ↓: select track</div>
+            </div>
+            <div class="guide-section">
+              <strong>Edit History</strong>
+              <div>Ctrl + Z: undo</div>
+              <div>Ctrl + Shift + Z or Ctrl + Y: redo</div>
+            </div>
           </div>
         </details>
         <details>
@@ -182,6 +223,13 @@
           <div class="guide-text">
             Pinch to zoom the timeline, drag to pan. Tap the M3 Menu bar to open/close the drawer.
             Use bottom tabs for Audio/Tracks/Mixer/Project/Actions/Effects.
+            <div class="guide-section">
+              <strong>Gestures</strong>
+              <div>Pinch: zoom timeline</div>
+              <div>Drag: pan timeline</div>
+              <div>Tap clip: select</div>
+              <div>Tap empty grid: move playhead</div>
+            </div>
           </div>
         </details>
       </div>
@@ -193,6 +241,32 @@
       <div class="overlay-sub">This can take a few seconds on longer files.</div>
       <div class="progress">
         <div id="analysisProgress" class="progress-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="effectOverlay" class="overlay hidden">
+    <div class="overlay-card effect-card">
+      <div class="overlay-title" id="effectTitle">Apply Effect</div>
+      <div class="overlay-sub">Applies to the current selection range.</div>
+      <div class="hud-grid effect-grid">
+        <label>Effect
+          <select id="effectType">
+            <option value="fadeIn">Fade In</option>
+            <option value="fadeOut">Fade Out</option>
+            <option value="crossfade">Crossfade</option>
+          </select>
+        </label>
+        <label>Duration (sec)
+          <input id="effectDuration" type="number" min="0.05" step="0.05" value="0.5" />
+        </label>
+        <label>Curve
+          <input id="effectCurve" type="range" min="0" max="1" step="0.01" value="0.5" />
+        </label>
+      </div>
+      <div class="effect-actions">
+        <button id="effectApply" class="btn primary">Apply</button>
+        <button id="effectCancel" class="btn">Cancel</button>
       </div>
     </div>
   </div>
