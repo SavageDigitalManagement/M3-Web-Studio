@@ -1,4 +1,4 @@
-﻿const fileInput = document.getElementById("fileInput");
+const fileInput = document.getElementById("fileInput");
 const trackArea = document.getElementById("trackArea");
 const ruler = document.getElementById("ruler");
 const playhead = document.getElementById("playhead");
@@ -1143,6 +1143,7 @@ document.addEventListener("wheel", (e) => {
 let isPanning = false;
 let spaceDown = false;
 let panStart = { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 };
+let touchState = null;
 
 timeline.addEventListener("mousedown", (e) => {
   if (!spaceDown) return;
@@ -1153,6 +1154,57 @@ timeline.addEventListener("mousedown", (e) => {
     scrollLeft: timeline.scrollLeft,
     scrollTop: timeline.scrollTop
   };
+});
+
+timeline.addEventListener("touchstart", (e) => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    touchState = {
+      mode: "pan",
+      startX: t.clientX,
+      startY: t.clientY,
+      scrollLeft: timeline.scrollLeft,
+      scrollTop: timeline.scrollTop
+    };
+  } else if (e.touches.length === 2) {
+    const [a, b] = e.touches;
+    const dx = b.clientX - a.clientX;
+    const dy = b.clientY - a.clientY;
+    touchState = {
+      mode: "pinch",
+      startDist: Math.hypot(dx, dy),
+      startZoom: state.pxPerSec
+    };
+  }
+}, { passive: false });
+
+timeline.addEventListener("touchmove", (e) => {
+  if (!touchState) return;
+  e.preventDefault();
+  if (touchState.mode === "pan" && e.touches.length === 1) {
+    const t = e.touches[0];
+    const dx = t.clientX - touchState.startX;
+    const dy = t.clientY - touchState.startY;
+    timeline.scrollLeft = touchState.scrollLeft - dx;
+    timeline.scrollTop = touchState.scrollTop - dy;
+  } else if (touchState.mode === "pinch" && e.touches.length === 2) {
+    const [a, b] = e.touches;
+    const dx = b.clientX - a.clientX;
+    const dy = b.clientY - a.clientY;
+    const dist = Math.hypot(dx, dy);
+    const scale = dist / Math.max(1, touchState.startDist);
+    const next = Math.max(5, Math.min(100000, Math.round(touchState.startZoom * scale)));
+    if (next !== state.pxPerSec) {
+      state.pxPerSec = next;
+      zoom.value = state.pxPerSec;
+      zoomHud.value = state.pxPerSec;
+      render();
+    }
+  }
+}, { passive: false });
+
+timeline.addEventListener("touchend", () => {
+  touchState = null;
 });
 
 document.addEventListener("keydown", (e) => {
