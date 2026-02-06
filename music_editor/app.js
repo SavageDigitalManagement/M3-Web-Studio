@@ -63,13 +63,10 @@ const deleteBtn = document.getElementById("deleteBtn");
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-const savedAnalysisUrl = localStorage.getItem("m3-analysis-url");
-if (analysisUrlInput && savedAnalysisUrl) {
-  analysisUrlInput.value = savedAnalysisUrl;
+const ANALYSIS_API_BASE = "https://m3-web-studio.onrender.com";
+if (analysisUrlInput) {
+  analysisUrlInput.value = ANALYSIS_API_BASE;
 }
-analysisUrlInput?.addEventListener("change", () => {
-  localStorage.setItem("m3-analysis-url", analysisUrlInput.value.trim());
-});
 
 const state = {
   tracks: [],
