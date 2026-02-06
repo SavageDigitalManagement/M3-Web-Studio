@@ -18,6 +18,9 @@ const followToggle = document.getElementById("followToggle");
 const gridSelect = document.getElementById("gridSelect");
 const metroToggle = document.getElementById("metroToggle");
 const zoomHud = document.getElementById("zoomHud");
+const analysisUrlInput = document.getElementById("analysisUrl");
+const analysisOverlay = document.getElementById("analysisOverlay");
+const analysisProgress = document.getElementById("analysisProgress");
 const timeline = document.getElementById("timeline");
 const contextMenu = document.getElementById("contextMenu");
 const tabAudio = document.getElementById("tabAudio");
@@ -45,6 +48,9 @@ const rangeLeft = rangeSelector.querySelector(".range-handle.left");
 const rangeRight = rangeSelector.querySelector(".range-handle.right");
 const rangeBody = rangeSelector.querySelector(".range-body");
 const miniFollowToggle = document.getElementById("miniFollowToggle");
+const ytUrl = document.getElementById("ytUrl");
+const ripSelectedBtn = document.getElementById("ripSelectedBtn");
+const ripNewBtn = document.getElementById("ripNewBtn");
 
 const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
@@ -56,6 +62,14 @@ const duplicateBtn = document.getElementById("duplicateBtn");
 const deleteBtn = document.getElementById("deleteBtn");
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+const savedAnalysisUrl = localStorage.getItem("m3-analysis-url");
+if (analysisUrlInput && savedAnalysisUrl) {
+  analysisUrlInput.value = savedAnalysisUrl;
+}
+analysisUrlInput?.addEventListener("change", () => {
+  localStorage.setItem("m3-analysis-url", analysisUrlInput.value.trim());
+});
 
 const state = {
   tracks: [],
@@ -125,9 +139,13 @@ function addClipToTrack(track, buffer, name) {
     duration: buffer.duration,
     bpm: state.bpm,
     playbackRate: 1,
+    key: null,
+    camelot: null,
+    sourceFile: null,
     start: 0
   };
   track.clips.push(clip);
+  return clip;
 }
 
 function snapshotState() {
@@ -251,7 +269,10 @@ function render() {
       clipEl.addEventListener("click", (e) => {
         state.selectedClipId = clip.id;
         state.selectedTrackId = track.id;
-        clipName.textContent = clip.name;
+        const bpmText = clip.bpm ? `${clip.bpm} BPM` : "-- BPM";
+        const keyText = clip.key ? clip.key : "--";
+        const camText = clip.camelot ? clip.camelot : "--";
+        clipName.textContent = `${clip.name} · ${bpmText} · ${camText} ${keyText}`;
         drawFullWaveform(clipPreview, clip.buffer);
         render();
       });
@@ -298,7 +319,10 @@ function render() {
 
   const selected = findSelectedClip();
   if (selected) {
-    clipName.textContent = selected.name;
+    const bpmText = selected.bpm ? `${selected.bpm} BPM` : "-- BPM";
+    const keyText = selected.key ? selected.key : "--";
+    const camText = selected.camelot ? selected.camelot : "--";
+    clipName.textContent = `${selected.name} · ${bpmText} · ${camText} ${keyText}`;
     drawFullWaveform(clipPreview, selected.buffer);
     updatePreviewPlayhead();
   } else {
@@ -570,7 +594,8 @@ async function handleFiles(files) {
     if (!state.tracks.length) addTrack();
     const idx = state.tracks.findIndex(t => t.id === state.selectedTrackId);
     const track = idx >= 0 ? state.tracks[idx] : state.tracks[0];
-    addClipToTrack(track, audioBuffer, file.name);
+    const clip = addClipToTrack(track, audioBuffer, file.name);
+    clip.sourceFile = file;
     if (!state.selectedClipId) {
       state.selectedClipId = track.clips[track.clips.length - 1].id;
       clipName.textContent = file.name;
@@ -758,6 +783,53 @@ function pasteClipAt(timeSec, trackIndex = 0) {
   render();
 }
 
+async function analyzeSelectedClip() {
+  const clip = findSelectedClip();
+  if (!clip) return;
+  const api = (analysisUrlInput.value || "").trim();
+  if (!api) {
+    alert("Set the Analysis API URL in Settings first.");
+    return;
+  }
+  if (!clip.sourceFile) {
+    alert("No original file stored for this clip. Re-import it from disk.");
+    return;
+  }
+  try {
+    analysisOverlay.classList.remove("hidden");
+    analysisProgress.style.width = "10%";
+    let pct = 10;
+    const timer = setInterval(() => {
+      pct = Math.min(95, pct + 5);
+      analysisProgress.style.width = `${pct}%`;
+    }, 500);
+
+    const form = new FormData();
+    form.append("file", clip.sourceFile, clip.sourceFile.name);
+    const res = await fetch(`${api.replace(/\/$/, "")}/analyze?seconds=60`, {
+      method: "POST",
+      body: form
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    clearInterval(timer);
+    analysisProgress.style.width = "100%";
+    if (data.bpm) {
+      clip.bpm = Math.round(data.bpm);
+      clip.playbackRate = state.bpm / clip.bpm;
+    }
+    clip.key = data.key || clip.key;
+    clip.camelot = data.camelot || clip.camelot;
+    render();
+  } catch (err) {
+    alert(`Analyze failed: ${err.message}`);
+  } finally {
+    setTimeout(() => {
+      analysisOverlay.classList.add("hidden");
+      analysisProgress.style.width = "0%";
+    }, 300);
+  }
+}
 function showContextMenu(e) {
   contextMenu.innerHTML = "";
   const clipEl = e.target.closest(".clip");
@@ -772,6 +844,7 @@ function showContextMenu(e) {
     const btns = [
       { label: "Split", action: splitClip },
       { label: "Duplicate", action: duplicateClip },
+      { label: "Analyze BPM/Key", action: analyzeSelectedClip },
       { label: "Set Clip BPM", action: setClipBpm },
       { label: "Copy", action: copyClip },
       { label: "Cut", action: cutClip },
@@ -809,6 +882,7 @@ function showAudioContextMenu(e) {
   const btns = [
     { label: "Split", action: splitClip },
     { label: "Duplicate", action: duplicateClip },
+    { label: "Analyze BPM/Key", action: analyzeSelectedClip },
     { label: "Set Clip BPM", action: setClipBpm },
     { label: "Copy", action: copyClip },
     { label: "Cut", action: cutClip },
@@ -1261,6 +1335,9 @@ audioSplit.addEventListener("click", splitClip);
 audioDuplicate.addEventListener("click", duplicateClip);
 audioDelete.addEventListener("click", deleteClip);
 
+ripSelectedBtn.addEventListener("click", () => ripYouTube(false));
+ripNewBtn.addEventListener("click", () => ripYouTube(true));
+
 function clampRange() {
   state.rangeStart = Math.max(0, state.rangeStart);
   state.rangeEnd = Math.max(state.rangeStart + 0.1, state.rangeEnd);
@@ -1557,6 +1634,44 @@ function encodeWav(buffer) {
   return result;
 }
 
+async function ripYouTube(intoNewTrack) {
+  const api = (analysisUrlInput.value || "").trim();
+  const url = (ytUrl.value || "").trim();
+  if (!api) {
+    alert("Set the Backend API URL in Settings first.");
+    return;
+  }
+  if (!url) {
+    alert("Paste a YouTube URL first.");
+    return;
+  }
+  try {
+    const res = await fetch(`${api.replace(/\/$/, "")}/rip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const filename = res.headers.get("x-filename") || "youtube-audio.webm";
+    const file = new File([blob], filename, { type: blob.type || "audio/webm" });
+    const arrayBuffer = await file.arrayBuffer();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+    if (intoNewTrack) addTrack();
+    if (!state.tracks.length) addTrack();
+    const idx = state.tracks.findIndex(t => t.id === state.selectedTrackId);
+    const track = idx >= 0 ? state.tracks[idx] : state.tracks[0];
+    const clip = addClipToTrack(track, audioBuffer, filename);
+    clip.sourceFile = file;
+    state.selectedClipId = clip.id;
+    state.selectedTrackId = track.id;
+    render();
+  } catch (err) {
+    alert(`Rip failed: ${err.message}`);
+  }
+}
+
 ruler.addEventListener("click", (e) => {
   const rect = ruler.getBoundingClientRect();
   const x = e.clientX - rect.left + ruler.scrollLeft;
@@ -1615,6 +1730,9 @@ trackArea.addEventListener("drop", (e) => {
         duration: audioBuffer.duration,
         bpm: state.bpm,
         playbackRate: 1,
+        key: null,
+        camelot: null,
+        sourceFile: file,
         start
       };
       state.tracks[trackIndex].clips.push(clip);
