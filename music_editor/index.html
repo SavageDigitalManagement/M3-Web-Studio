@@ -1,0 +1,164 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M3 Web Studio — Browser Music Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">M3 WEB STUDIO</div>
+        <div class="tag">sleek browser music editor</div>
+      </div>
+      <div class="transport">
+        <button id="playBtn" class="btn primary">Play</button>
+        <button id="pauseBtn" class="btn">Pause</button>
+        <button id="stopBtn" class="btn">Stop</button>
+        <div class="time" id="timeReadout">00:00.0</div>
+        <div class="time" id="barBeatReadout">1.1.1</div>
+      </div>
+      <div class="tools">
+        <label class="file">
+          <input id="fileInput" type="file" accept="audio/*" multiple />
+          Import Audio
+        </label>
+        <select id="exportFormat" class="btn">
+          <option value="wav">Export WAV</option>
+          <option value="webm">Export WebM (Opus)</option>
+          <option value="ogg">Export OGG (Opus)</option>
+        </select>
+        <button id="exportBtn" class="btn">Export</button>
+        <button id="addTrack" class="btn">Add Track</button>
+        <button id="settingsBtn" class="btn">Settings</button>
+      </div>
+    </header>
+
+    <section class="studio">
+      <aside class="sidebar">
+        <div class="panel">
+          <div class="panel-title">Mixer</div>
+          <div id="mixer"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Project</div>
+          <div class="project-info">
+            <div><span>Tempo</span><strong id="tempoValue">120</strong></div>
+            <div><span>Key</span><strong>—</strong></div>
+            <div><span>Length</span><strong id="projectLen">0.0s</strong></div>
+          </div>
+          <div class="zoom">
+            <label>Zoom</label>
+            <input id="zoom" type="range" min="5" max="100000" value="120" />
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Actions</div>
+          <button id="splitBtn" class="btn">Split at Playhead</button>
+          <button id="duplicateBtn" class="btn">Duplicate Clip</button>
+          <button id="deleteBtn" class="btn">Delete Clip</button>
+          <div class="hint">Select a clip to edit. Drag clips on the timeline.</div>
+        </div>
+      </aside>
+
+      <main class="timeline" id="timeline">
+        <div class="ruler" id="ruler"></div>
+        <div id="rangeSelector" class="range-selector hidden">
+          <div class="range-handle left"></div>
+          <div class="range-body"></div>
+          <div class="range-handle right"></div>
+        </div>
+        <div class="trackArea" id="trackArea"></div>
+        <div class="playhead" id="playhead"></div>
+        <div class="ghosthead" id="ghosthead"></div>
+      </main>
+    </section>
+  </div>
+
+  <div id="contextMenu" class="context hidden"></div>
+
+  <div class="bottom-tabs">
+    <button id="tabAudio" class="tab active">Audio</button>
+    <button id="tabMixer" class="tab">Mixer</button>
+    <button id="tabEffects" class="tab">Effects</button>
+  </div>
+  <div class="bottom-panel" id="panelAudio">
+    <div id="panelResize" class="panel-resize"></div>
+    <div class="panel-title">Selected Clip</div>
+    <div class="audio-preview">
+      <div>
+        <div id="clipName" class="muted">No clip selected</div>
+        <div class="mini-controls">
+          <label class="toggle">
+            <input id="miniFollowToggle" type="checkbox" checked />
+            Mini Follow
+          </label>
+          <button id="audioPlay" class="btn primary">Play</button>
+          <button id="audioPause" class="btn">Pause</button>
+          <button id="audioStop" class="btn">Stop</button>
+          <button id="audioSplit" class="btn">Split</button>
+          <button id="audioDuplicate" class="btn">Duplicate</button>
+          <button id="audioDelete" class="btn">Delete</button>
+        </div>
+      </div>
+      <div id="previewWrap" class="preview-wrap">
+        <div id="previewPlayhead" class="preview-playhead"></div>
+        <canvas id="clipPreview" width="1200" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-panel hidden" id="panelMixer">
+    <div class="panel-title">Track EQ + Filters</div>
+    <div id="eqControls" class="eq-grid"></div>
+  </div>
+  <div class="bottom-panel hidden" id="panelEffects">
+    <div class="panel-title">Effects</div>
+    <div class="muted">Coming next: reverb, delay, saturation, compressor.</div>
+  </div>
+
+  <div id="settingsHud" class="hud hidden">
+    <div class="hud-header">
+      <div class="hud-title">M3 Settings</div>
+      <button id="closeHud" class="btn">Close</button>
+    </div>
+    <div class="hud-grid">
+      <label>BPM
+        <input id="bpmInput" type="number" min="40" max="220" value="120" />
+      </label>
+      <label>Snap to Beat
+        <input id="snapToggle" type="checkbox" checked />
+      </label>
+      <label>Auto-Scroll
+        <input id="followToggle" type="checkbox" checked />
+      </label>
+      <label>Beat Grid
+        <select id="gridSelect">
+          <option value="1">1/1</option>
+          <option value="2">1/2</option>
+          <option value="4" selected>1/4</option>
+          <option value="8">1/8</option>
+          <option value="16">1/16</option>
+        </select>
+      </label>
+      <label>Metronome
+        <input id="metroToggle" type="checkbox" />
+      </label>
+      <label>Zoom
+        <input id="zoomHud" type="range" min="5" max="100000" value="120" />
+      </label>
+    </div>
+    <div class="hud-hint">
+      Hotkeys: Space Play/Stop · S Split · D Duplicate · Del Delete · +/- Zoom
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
