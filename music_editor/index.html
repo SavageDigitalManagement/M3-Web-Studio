@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b1116'/%3E%3Cpath d='M14 36c8-10 16-10 24 0 6 8 14 8 12-6' stroke='%2300e5ff' stroke-width='4' fill='none'/%3E%3Ccircle cx='20' cy='24' r='4' fill='%236bffb8'/%3E%3C/svg%3E">
 </head>
 <body>
   <div class="app">
@@ -63,6 +64,12 @@
     </section>
   </div>
 
+  <div class="fx-overlay" aria-hidden="true">
+    <div class="fx-scanline"></div>
+    <div class="fx-noise"></div>
+    <canvas id="fxParticles"></canvas>
+  </div>
+
   <div id="contextMenu" class="context hidden"></div>
 
   <div id="bottomDrawer" class="bottom-drawer">
@@ -115,9 +122,24 @@
       <div><span>Key</span><strong>—</strong></div>
       <div><span>Length</span><strong id="projectLen">0.0s</strong></div>
     </div>
-    <div class="zoom">
-      <label>Zoom</label>
-      <input id="zoom" type="range" min="5" max="100000" value="120" />
+    <div class="project-actions">
+      <div class="project-row">
+        <button id="saveProjectFile" class="btn">Save Project File</button>
+        <button id="loadProjectFile" class="btn">Load Project File</button>
+        <input id="projectFileInput" type="file" accept=".m3proj,application/json" class="hidden" />
+      </div>
+      <div class="project-row">
+        <label class="toggle">
+          <input id="includeAudioInFile" type="checkbox" checked />
+          Include audio in file
+        </label>
+      </div>
+      <div class="project-row">
+        <button id="saveProjectLocal" class="btn">Save to Browser</button>
+        <button id="loadProjectLocal" class="btn">Load from Browser</button>
+        <button id="clearProjectLocal" class="btn">Clear Local</button>
+      </div>
+      <div id="projectStatus" class="hint muted">Project saves are local unless you export a file.</div>
     </div>
   </div>
     <div class="bottom-panel hidden" id="panelActions">
@@ -135,6 +157,48 @@
       <button id="fxCrossfade" class="btn">Crossfade Selection…</button>
     </div>
     <div class="hint muted">Tip: Alt + drag on the timeline to create a selection range.</div>
+    <div class="effects-grid">
+      <div class="effects-section">
+        <div class="panel-title">Clip FX (Selected Clip)</div>
+        <div class="effect-row">
+          <label>Time Stretch</label>
+          <input id="clipRate" type="range" min="0.5" max="2" step="0.01" value="1" />
+          <span id="clipRateVal" class="muted">1.00x</span>
+        </div>
+        <div class="effect-row">
+          <label>Pitch</label>
+          <input id="clipPitch" type="range" min="-12" max="12" step="1" value="0" />
+          <span id="clipPitchVal" class="muted">0 st</span>
+        </div>
+        <div class="effect-row">
+          <button id="clipFxApply" class="btn">Apply Stretch</button>
+          <button id="clipFxReset" class="btn">Reset Clip FX</button>
+        </div>
+        <div class="hint muted">Time Stretch is granular and keeps pitch. Pitch shifts by resampling.</div>
+      </div>
+      <div class="effects-section">
+        <div class="panel-title">Track FX (Selected Track)</div>
+        <div class="effect-row">
+          <label><input id="fxDelayOn" type="checkbox" /> Delay</label>
+          <input id="fxDelayTime" type="range" min="0" max="0.8" step="0.01" value="0.2" />
+          <input id="fxDelayFeedback" type="range" min="0" max="0.9" step="0.01" value="0.3" />
+          <input id="fxDelayMix" type="range" min="0" max="1" step="0.01" value="0.25" />
+        </div>
+        <div class="effect-row">
+          <label><input id="fxReverbOn" type="checkbox" /> Reverb</label>
+          <input id="fxReverbMix" type="range" min="0" max="1" step="0.01" value="0.2" />
+        </div>
+        <div class="effect-row">
+          <label><input id="fxSatOn" type="checkbox" /> Saturation</label>
+          <input id="fxSatDrive" type="range" min="0" max="1" step="0.01" value="0.2" />
+        </div>
+        <div class="effect-row">
+          <label><input id="fxCompOn" type="checkbox" /> Compressor</label>
+          <input id="fxCompThreshold" type="range" min="-60" max="0" step="1" value="-18" />
+          <input id="fxCompRatio" type="range" min="1" max="20" step="0.5" value="4" />
+        </div>
+      </div>
+    </div>
   </div>
 
   </div>
@@ -167,9 +231,19 @@
       <label>Metronome
         <input id="metroToggle" type="checkbox" />
       </label>
+      <label>FX Intensity
+        <input id="fxIntensity" type="range" min="0" max="100" value="35" />
+      </label>
+      <label>Screen Noise
+        <input id="fxNoiseToggle" type="checkbox" checked />
+      </label>
+      <label>Frame Glow
+        <input id="fxGlowToggle" type="checkbox" checked />
+      </label>
       <label>Zoom
         <input id="zoomHud" type="range" min="5" max="100000" value="120" />
       </label>
+      <input id="zoom" type="range" min="5" max="100000" value="120" class="hidden" />
       </div>
       <div class="hud-hint">
         Hotkeys: Space Play/Pause · S Split · D Duplicate · Del Delete · +/- Zoom
@@ -215,6 +289,42 @@
               <strong>Edit History</strong>
               <div>Ctrl + Z: undo</div>
               <div>Ctrl + Shift + Z or Ctrl + Y: redo</div>
+            </div>
+            <div class="guide-section">
+              <strong>Project Save/Load</strong>
+              <div>Project tab → Save Project File (exports .m3proj)</div>
+              <div>Project tab → Save to Browser (local)</div>
+              <div>Load Project File prompts relink if audio is missing</div>
+            </div>
+            <div class="guide-section">
+              <strong>Effects</strong>
+              <div>Effects tab → fade selection / track FX</div>
+              <div>Right‑click with range active shows selection effects</div>
+            </div>
+            <div class="guide-section">
+              <strong>Selection Effects</strong>
+              <div>Alt + drag to define a range, then use Effects tab or right‑click</div>
+              <div>Fade In/Out affects only the selected range (clips auto‑split)</div>
+              <div>Crossfade applies fade‑in + fade‑out on the selection boundaries</div>
+            </div>
+            <div class="guide-section">
+              <strong>Clip FX</strong>
+              <div>Time Stretch: granular, preserves pitch (Apply to bake)</div>
+              <div>Pitch: semitone shift (resampling)</div>
+              <div>Reset Clip FX restores original buffer</div>
+            </div>
+            <div class="guide-section">
+              <strong>Track FX</strong>
+              <div>Delay: time/feedback/mix</div>
+              <div>Reverb: mix</div>
+              <div>Saturation: drive</div>
+              <div>Compressor: threshold/ratio</div>
+              <div>Track FX apply in playback and export</div>
+            </div>
+            <div class="guide-section">
+              <strong>Relink Flow</strong>
+              <div>If a project loads without audio, the Relink window appears</div>
+              <div>Select the original audio files to restore clips</div>
             </div>
           </div>
         </details>
@@ -267,6 +377,19 @@
       <div class="effect-actions">
         <button id="effectApply" class="btn primary">Apply</button>
         <button id="effectCancel" class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="relinkOverlay" class="overlay hidden">
+    <div class="overlay-card effect-card">
+      <div class="overlay-title">Relink Audio Files</div>
+      <div class="overlay-sub">Some clips are missing audio. Select the original files to relink.</div>
+      <div id="relinkList" class="relink-list"></div>
+      <input id="relinkInput" type="file" multiple accept="audio/*" />
+      <div class="effect-actions">
+        <button id="relinkApply" class="btn primary">Relink</button>
+        <button id="relinkSkip" class="btn">Skip Missing</button>
       </div>
     </div>
   </div>
