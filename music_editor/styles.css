@@ -364,6 +364,21 @@ body.dragging {
   text-align: center;
 }
 
+.effect-card {
+  max-width: 520px;
+}
+
+.effect-grid {
+  margin-top: 12px;
+}
+
+.effect-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
 .overlay-title {
   font-size: 16px;
   color: var(--accent);
@@ -374,6 +389,13 @@ body.dragging {
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 12px;
+}
+
+.effects-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .progress {
@@ -485,6 +507,28 @@ body.dragging {
   align-items: center;
   gap: 6px;
   padding: 0 10px;
+  overflow: visible;
+  z-index: 2;
+}
+
+.clip-handle {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  background: rgba(177, 0, 255, 0.35);
+  cursor: ew-resize;
+  z-index: 6;
+}
+
+.clip-handle.left {
+  left: -4px;
+  border-radius: 6px 0 0 6px;
+}
+
+.clip-handle.right {
+  right: -4px;
+  border-radius: 0 6px 6px 0;
 }
 
 .clip.selected { outline: 2px solid var(--accent2); }
@@ -614,6 +658,17 @@ body.dragging {
   color: var(--muted);
   line-height: 1.5;
   margin-top: 6px;
+}
+
+.guide-section {
+  margin-top: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.guide-section strong {
+  color: var(--accent);
+  font-size: 12px;
 }
 
 .context {
