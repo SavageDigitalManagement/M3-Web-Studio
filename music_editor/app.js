@@ -60,6 +60,16 @@ const ripSelectedBtn = document.getElementById("ripSelectedBtn");
 const ripNewBtn = document.getElementById("ripNewBtn");
 const menuToggle = document.getElementById("menuToggle");
 const bottomDrawer = document.getElementById("bottomDrawer");
+const effectOverlay = document.getElementById("effectOverlay");
+const effectTitle = document.getElementById("effectTitle");
+const effectType = document.getElementById("effectType");
+const effectDuration = document.getElementById("effectDuration");
+const effectCurve = document.getElementById("effectCurve");
+const effectApply = document.getElementById("effectApply");
+const effectCancel = document.getElementById("effectCancel");
+const fxFadeIn = document.getElementById("fxFadeIn");
+const fxFadeOut = document.getElementById("fxFadeOut");
+const fxCrossfade = document.getElementById("fxCrossfade");
 
 const playBtn = document.getElementById("playBtn");
 const pauseBtn = document.getElementById("pauseBtn");
@@ -100,6 +110,7 @@ let clipboardClip = null;
 let undoStack = [];
 let redoStack = [];
 let rangeDrag = null;
+let selectingRange = false;
 
 state.rangeVisible = false;
 state.rangeStart = 0;
@@ -149,6 +160,13 @@ function addClipToTrack(track, buffer, name) {
     key: null,
     camelot: null,
     sourceFile: null,
+    startOffset: 0,
+    endOffset: 0,
+    fadeIn: 0,
+    fadeOut: 0,
+    fadeActive: false,
+    fadeInCurve: 0.5,
+    fadeOutCurve: 0.5,
     start: 0
   };
   track.clips.push(clip);
@@ -211,7 +229,53 @@ function redo() {
 
 function getClipDuration(clip) {
   const rate = clip.playbackRate || 1;
-  return clip.buffer.duration / rate;
+  const trimmed = Math.max(0, clip.buffer.duration - (clip.startOffset || 0) - (clip.endOffset || 0));
+  return trimmed / rate;
+}
+
+function getClipWindow(clip) {
+  const startOffset = clip.startOffset || 0;
+  const endOffset = clip.endOffset || 0;
+  const trimmed = Math.max(0, clip.buffer.duration - startOffset - endOffset);
+  return { startOffset, endOffset, trimmed };
+}
+
+function buildFadeCurve(curveVal, points = 64, invert = false) {
+  const clamped = Math.max(0, Math.min(1, curveVal));
+  const exp = 0.5 + clamped * 3.5;
+  const out = new Float32Array(points);
+  for (let i = 0; i < points; i++) {
+    const t = i / (points - 1);
+    const v = invert ? Math.pow(1 - t, exp) : Math.pow(t, exp);
+    out[i] = v;
+  }
+  return out;
+}
+
+function applyFades(gainNode, startTime, duration, clip) {
+  if (!clip.fadeActive) {
+    gainNode.gain.setValueAtTime(1, startTime);
+    return;
+  }
+  const fadeIn = Math.min(clip.fadeIn || 0, duration / 2);
+  const fadeOut = Math.min(clip.fadeOut || 0, duration / 2);
+  const hasIn = fadeIn > 0.001;
+  const hasOut = fadeOut > 0.001;
+
+  if (hasIn) {
+    const curve = buildFadeCurve(clip.fadeInCurve ?? 0.5, 64, false);
+    gainNode.gain.setValueAtTime(0, startTime);
+    gainNode.gain.setValueCurveAtTime(curve, startTime, fadeIn);
+  } else {
+    gainNode.gain.setValueAtTime(1, startTime);
+  }
+
+  if (hasOut) {
+    const curve = buildFadeCurve(clip.fadeOutCurve ?? 0.5, 64, true);
+    const outStart = startTime + duration - fadeOut;
+    gainNode.gain.setValueAtTime(1, outStart);
+    gainNode.gain.setValueCurveAtTime(curve, outStart, fadeOut);
+  }
 }
 
 function render() {
@@ -268,10 +332,21 @@ function render() {
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.floor(getClipDuration(clip) * state.pxPerSec));
       canvas.height = 36;
-      drawWaveform(canvas, clip.buffer);
+      drawWaveform(canvas, clip);
 
       clipEl.appendChild(nameEl);
       clipEl.appendChild(canvas);
+
+      const leftHandle = document.createElement("div");
+      leftHandle.className = "clip-handle left";
+      const rightHandle = document.createElement("div");
+      rightHandle.className = "clip-handle right";
+
+      clipEl.appendChild(leftHandle);
+      clipEl.appendChild(rightHandle);
+
+      leftHandle.addEventListener("mousedown", (e) => startResize(e, clip, "left"));
+      rightHandle.addEventListener("mousedown", (e) => startResize(e, clip, "right"));
 
       clipEl.addEventListener("mousedown", (e) => startDrag(e, track, clip, clipEl));
       clipEl.addEventListener("click", (e) => {
@@ -281,7 +356,7 @@ function render() {
         const keyText = clip.key ? clip.key : "--";
         const camText = clip.camelot ? clip.camelot : "--";
         clipName.textContent = `${clip.name} · ${bpmText} · ${camText} ${keyText}`;
-        drawFullWaveform(clipPreview, clip.buffer);
+    drawFullWaveform(clipPreview, clip);
         render();
       });
 
@@ -336,7 +411,7 @@ function render() {
     const keyText = selected.key ? selected.key : "--";
     const camText = selected.camelot ? selected.camelot : "--";
     clipName.textContent = `${selected.name} · ${bpmText} · ${camText} ${keyText}`;
-    drawFullWaveform(clipPreview, selected.buffer);
+    drawFullWaveform(clipPreview, selected);
     updatePreviewPlayhead();
   } else {
     clipName.textContent = "No clip selected";
@@ -407,21 +482,26 @@ function renderRuler(lengthSec) {
   updateRangeUI();
 }
 
-function drawWaveform(canvas, buffer) {
+function drawWaveform(canvas, clip) {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = "rgba(0,229,255,0.8)";
   ctx.lineWidth = 1;
 
+  const buffer = clip.buffer;
   const data = buffer.getChannelData(0);
-  const step = Math.ceil(data.length / canvas.width);
+  const { startOffset, endOffset } = getClipWindow(clip);
+  const startSample = Math.max(0, Math.floor(startOffset * buffer.sampleRate));
+  const endSample = Math.min(data.length, Math.floor((buffer.duration - endOffset) * buffer.sampleRate));
+  const totalSamples = Math.max(1, endSample - startSample);
+  const step = Math.ceil(totalSamples / canvas.width);
   const amp = canvas.height / 2;
   ctx.beginPath();
   for (let i = 0; i < canvas.width; i++) {
     let min = 1.0;
     let max = -1.0;
     for (let j = 0; j < step; j++) {
-      const datum = data[(i * step) + j] || 0;
+      const datum = data[startSample + (i * step) + j] || 0;
       if (datum < min) min = datum;
       if (datum > max) max = datum;
     }
@@ -431,25 +511,30 @@ function drawWaveform(canvas, buffer) {
   ctx.stroke();
 }
 
-function drawFullWaveform(canvas, buffer) {
-  if (!buffer) return;
+function drawFullWaveform(canvas, clip) {
+  if (!clip || !clip.buffer) return;
+  const { startOffset, endOffset, trimmed } = getClipWindow(clip);
   const previewPxPerSec = Math.max(120, state.pxPerSec * 1.2);
-  canvas.width = Math.max(1, Math.floor(buffer.duration * previewPxPerSec));
+  canvas.width = Math.max(1, Math.floor(trimmed * previewPxPerSec));
   canvas.height = 120;
   canvas.dataset.pxPerSec = String(previewPxPerSec);
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = "rgba(107,255,184,0.8)";
   ctx.lineWidth = 1;
+  const buffer = clip.buffer;
   const data = buffer.getChannelData(0);
-  const step = Math.ceil(data.length / canvas.width);
+  const startSample = Math.max(0, Math.floor(startOffset * buffer.sampleRate));
+  const endSample = Math.min(data.length, Math.floor((buffer.duration - endOffset) * buffer.sampleRate));
+  const totalSamples = Math.max(1, endSample - startSample);
+  const step = Math.ceil(totalSamples / canvas.width);
   const amp = canvas.height / 2;
   ctx.beginPath();
   for (let i = 0; i < canvas.width; i++) {
     let min = 1.0;
     let max = -1.0;
     for (let j = 0; j < step; j++) {
-      const datum = data[(i * step) + j] || 0;
+      const datum = data[startSample + (i * step) + j] || 0;
       if (datum < min) min = datum;
       if (datum > max) max = datum;
     }
@@ -460,6 +545,13 @@ function drawFullWaveform(canvas, buffer) {
 }
 
 function startDrag(e, track, clip, clipEl) {
+  if (e.button !== 0) return;
+  state.selectedClipId = clip.id;
+  state.selectedTrackId = track.id;
+  if (e.altKey) {
+    render();
+    return;
+  }
   document.body.classList.add("dragging");
   const startX = e.clientX;
   const original = clip.start;
@@ -503,6 +595,79 @@ function startDrag(e, track, clip, clipEl) {
     render();
   }
 
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+}
+
+function startResize(e, clip, side) {
+  e.stopPropagation();
+  pushUndo();
+  const startX = e.clientX;
+  const originalStart = clip.start;
+  const originalStartOffset = clip.startOffset || 0;
+  const originalEndOffset = clip.endOffset || 0;
+  const rate = clip.playbackRate || 1;
+  const minLen = 0.1;
+
+  function onMove(ev) {
+    const dx = (ev.clientX - startX) / state.pxPerSec;
+    if (side === "left") {
+      const maxStartOffset = clip.buffer.duration - originalEndOffset - minLen * rate;
+      const nextStartOffset = Math.min(maxStartOffset, Math.max(0, originalStartOffset + dx * rate));
+      const deltaTimeline = (nextStartOffset - originalStartOffset) / rate;
+      clip.startOffset = nextStartOffset;
+      clip.start = Math.max(0, originalStart + deltaTimeline);
+    } else {
+      const maxEndOffset = clip.buffer.duration - originalStartOffset - minLen * rate;
+      const nextEndOffset = Math.min(maxEndOffset, Math.max(0, originalEndOffset - dx * rate));
+      clip.endOffset = nextEndOffset;
+    }
+    const nextDur = getClipDuration(clip);
+    clip.fadeIn = Math.min(clip.fadeIn || 0, nextDur / 2);
+    clip.fadeOut = Math.min(clip.fadeOut || 0, nextDur / 2);
+    render();
+  }
+
+  function onUp() {
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+  }
+
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+}
+
+function startFade(e, clip, side) {
+  e.stopPropagation();
+  e.preventDefault();
+  pushUndo();
+  const rect = e.currentTarget.parentElement.getBoundingClientRect();
+  const clipHeight = Math.max(1, rect.height);
+  const clipWidth = getClipDuration(clip) * state.pxPerSec;
+
+  function onMove(ev) {
+    const localX = Math.max(0, Math.min(clipWidth, ev.clientX - rect.left));
+    const localY = Math.max(0, Math.min(clipHeight, ev.clientY - rect.top));
+    const curve = 1 - (localY / clipHeight);
+    const clipDur = getClipDuration(clip);
+    if (side === "in") {
+      clip.fadeIn = Math.min(clipDur / 2, localX / state.pxPerSec);
+      clip.fadeInCurve = curve;
+    } else {
+      clip.fadeOut = Math.min(clipDur / 2, (clipWidth - localX) / state.pxPerSec);
+      clip.fadeOutCurve = curve;
+    }
+    clip.fadeActive = true;
+    render();
+  }
+
+  function onUp() {
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    document.body.classList.remove("dragging");
+  }
+
+  document.body.classList.add("dragging");
   window.addEventListener("mousemove", onMove);
   window.addEventListener("mouseup", onUp);
 }
@@ -648,15 +813,17 @@ function scheduleSources() {
     if (soloTracks.length && !track.solo) return;
     if (track.mute) return;
 
-    track.clips.forEach((clip) => {
-      const clipStart = clip.start;
-      const clipDuration = getClipDuration(clip);
-      const clipEnd = clip.start + clipDuration;
-      if (state.playStartOffset > clipEnd) return;
+      track.clips.forEach((clip) => {
+        const clipStart = clip.start;
+        const clipDuration = getClipDuration(clip);
+        const clipEnd = clip.start + clipDuration;
+        if (state.playStartOffset > clipEnd) return;
+        if (clipDuration <= 0) return;
+        const { startOffset, trimmed } = getClipWindow(clip);
 
-      const source = audioCtx.createBufferSource();
-      source.buffer = clip.buffer;
-      source.playbackRate.value = clip.playbackRate || 1;
+        const source = audioCtx.createBufferSource();
+        source.buffer = clip.buffer;
+        source.playbackRate.value = clip.playbackRate || 1;
 
       const lowCut = audioCtx.createBiquadFilter();
       lowCut.type = "highpass";
@@ -675,8 +842,11 @@ function scheduleSources() {
         return f;
       });
 
-      const gain = audioCtx.createGain();
-      gain.gain.value = track.volume;
+        const clipGain = audioCtx.createGain();
+        clipGain.gain.value = 1;
+
+        const gain = audioCtx.createGain();
+        gain.gain.value = track.volume;
 
       let chain = source;
       chain.connect(lowCut);
@@ -685,17 +855,24 @@ function scheduleSources() {
         chain.connect(node);
         chain = node;
       });
-      chain.connect(highCut);
-      highCut.connect(gain).connect(audioCtx.destination);
-      state.activeSources.push(source);
+        chain.connect(highCut);
+        highCut.connect(clipGain).connect(gain).connect(audioCtx.destination);
+        state.activeSources.push(source);
 
-      const startAt = Math.max(0, clipStart - state.playStartOffset);
-      const offsetTimeline = Math.max(0, state.playStartOffset - clipStart);
-      const offsetBuf = offsetTimeline * (clip.playbackRate || 1);
-      const durationBuf = clip.buffer.duration - offsetBuf;
-      source.start(audioCtx.currentTime + startAt, offsetBuf, durationBuf);
+        const startAt = Math.max(0, clipStart - state.playStartOffset);
+        const offsetTimeline = Math.max(0, state.playStartOffset - clipStart);
+        const rate = clip.playbackRate || 1;
+        const offsetBuf = startOffset + offsetTimeline * rate;
+        const durationTimeline = Math.min(clipDuration - offsetTimeline, trimmed / rate - offsetTimeline);
+        if (durationTimeline <= 0) return;
+        const durationBuf = durationTimeline * rate;
+        const startTime = audioCtx.currentTime + startAt;
+
+        applyFades(clipGain, startTime, durationTimeline, clip);
+
+        source.start(startTime, offsetBuf, durationBuf);
+      });
     });
-  });
 }
 
 function pause() {
@@ -722,26 +899,83 @@ function splitClip() {
   const leftDur = cut - clip.start;
   const rightDur = clipDuration - leftDur;
   const rate = clip.playbackRate || 1;
+  const originalFadeIn = clip.fadeIn || 0;
+  const originalFadeOut = clip.fadeOut || 0;
+  const { startOffset, endOffset } = getClipWindow(clip);
+  const bufferDur = clip.buffer.duration;
+  const cutOffset = startOffset + leftDur * rate;
 
-  const leftBuffer = sliceBuffer(clip.buffer, 0, leftDur * rate);
-  const rightBuffer = sliceBuffer(clip.buffer, leftDur * rate, rightDur * rate);
-
-  clip.buffer = leftBuffer;
-  clip.duration = leftBuffer.duration;
+  clip.startOffset = startOffset;
+  clip.endOffset = Math.max(0, bufferDur - cutOffset);
+  clip.fadeOut = 0;
+  clip.fadeIn = Math.min(originalFadeIn, leftDur);
 
   const rightClip = {
     id: crypto.randomUUID(),
     name: clip.name + " (B)",
-    buffer: rightBuffer,
-    duration: rightBuffer.duration,
+    buffer: clip.buffer,
+    duration: clip.buffer.duration,
     bpm: clip.bpm,
     playbackRate: clip.playbackRate,
+    key: clip.key,
+    camelot: clip.camelot,
+    sourceFile: clip.sourceFile,
+    startOffset: cutOffset,
+    endOffset,
+    fadeIn: 0,
+    fadeInCurve: clip.fadeInCurve ?? 0.5,
+    fadeOut: Math.min(originalFadeOut, rightDur),
+    fadeOutCurve: clip.fadeOutCurve ?? 0.5,
+    fadeActive: clip.fadeActive || false,
     start: cut
   };
 
   const track = findTrackByClip(clip.id);
   track.clips.push(rightClip);
   render();
+}
+
+function splitClipAtTime(clip, cutTime) {
+  const clipDuration = getClipDuration(clip);
+  if (cutTime <= clip.start || cutTime >= clip.start + clipDuration) return null;
+  const leftDur = cutTime - clip.start;
+  const rightDur = clipDuration - leftDur;
+  const rate = clip.playbackRate || 1;
+  const originalFadeIn = clip.fadeIn || 0;
+  const originalFadeOut = clip.fadeOut || 0;
+  const { startOffset, endOffset } = getClipWindow(clip);
+  const bufferDur = clip.buffer.duration;
+  const cutOffset = startOffset + leftDur * rate;
+
+  clip.startOffset = startOffset;
+  clip.endOffset = Math.max(0, bufferDur - cutOffset);
+  clip.fadeOut = 0;
+  clip.fadeIn = Math.min(originalFadeIn, leftDur);
+
+  const rightClip = {
+    id: crypto.randomUUID(),
+    name: clip.name + " (B)",
+    buffer: clip.buffer,
+    duration: clip.buffer.duration,
+    bpm: clip.bpm,
+    playbackRate: clip.playbackRate,
+    key: clip.key,
+    camelot: clip.camelot,
+    sourceFile: clip.sourceFile,
+    startOffset: cutOffset,
+    endOffset,
+    fadeIn: 0,
+    fadeInCurve: clip.fadeInCurve ?? 0.5,
+    fadeOut: Math.min(originalFadeOut, rightDur),
+    fadeOutCurve: clip.fadeOutCurve ?? 0.5,
+    fadeActive: clip.fadeActive || false,
+    start: cutTime
+  };
+
+  const track = findTrackByClip(clip.id);
+  if (!track) return null;
+  track.clips.push(rightClip);
+  return rightClip;
 }
 
 function duplicateClip() {
@@ -856,6 +1090,19 @@ function showContextMenu(e) {
   const rect = trackArea.getBoundingClientRect();
   const y = e.clientY - rect.top + trackArea.scrollTop;
   const trackIndex = Math.max(0, Math.floor(y / 90));
+  const hasRange = state.rangeVisible && state.rangeEnd > state.rangeStart;
+  if (hasRange) {
+    const btns = [
+      { label: "Fade In Selection…", action: () => openEffectModal("fadeIn") },
+      { label: "Fade Out Selection…", action: () => openEffectModal("fadeOut") },
+      { label: "Crossfade Selection…", action: () => openEffectModal("crossfade") }
+    ];
+    btns.forEach(b => addMenuItem(b.label, b.action));
+    contextMenu.style.left = `${e.clientX}px`;
+    contextMenu.style.top = `${e.clientY}px`;
+    contextMenu.classList.remove("hidden");
+    return;
+  }
   if (clipEl) {
     const clipId = clipEl.dataset.clipId;
     state.selectedClipId = clipId;
@@ -899,6 +1146,19 @@ function showAudioContextMenu(e) {
   const clip = findSelectedClip();
   if (!clip) return;
   contextMenu.innerHTML = "";
+  const hasRange = state.rangeVisible && state.rangeEnd > state.rangeStart;
+  if (hasRange) {
+    const btns = [
+      { label: "Fade In Selection…", action: () => openEffectModal("fadeIn") },
+      { label: "Fade Out Selection…", action: () => openEffectModal("fadeOut") },
+      { label: "Crossfade Selection…", action: () => openEffectModal("crossfade") }
+    ];
+    btns.forEach(b => addMenuItem(b.label, b.action));
+    contextMenu.style.left = `${e.clientX}px`;
+    contextMenu.style.top = `${e.clientY}px`;
+    contextMenu.classList.remove("hidden");
+    return;
+  }
   const btns = [
     { label: "Split", action: splitClip },
     { label: "Duplicate", action: duplicateClip },
@@ -924,6 +1184,69 @@ function findSelectedClip() {
 
 function findTrackByClip(id) {
   return state.tracks.find(t => t.clips.some(c => c.id === id));
+}
+
+function openEffectModal(type = "fadeIn") {
+  if (!effectOverlay) return;
+  const hasRange = state.rangeVisible && state.rangeEnd > state.rangeStart;
+  if (!hasRange) {
+    alert("Select a range first (Alt + drag).");
+    return;
+  }
+  effectType.value = type;
+  effectTitle.textContent = `Apply ${type === "crossfade" ? "Crossfade" : type === "fadeOut" ? "Fade Out" : "Fade In"}`;
+  effectOverlay.classList.remove("hidden");
+}
+
+function closeEffectModal() {
+  effectOverlay.classList.add("hidden");
+}
+
+function applySelectionEffect() {
+  const hasRange = state.rangeVisible && state.rangeEnd > state.rangeStart;
+  if (!hasRange) return;
+  const effect = effectType.value;
+  const duration = Math.max(0.05, parseFloat(effectDuration.value || "0.5"));
+  const curve = Math.max(0, Math.min(1, parseFloat(effectCurve.value || "0.5")));
+  pushUndo();
+
+  const start = state.rangeStart;
+  const end = state.rangeEnd;
+  state.tracks.forEach(track => {
+    track.clips.slice().forEach((clip) => {
+      const clipStart = clip.start;
+      const clipEnd = clip.start + getClipDuration(clip);
+      if (clipEnd <= start || clipStart >= end) return;
+
+      let working = clip;
+      if (start > clipStart && start < clipEnd) {
+        const right = splitClipAtTime(working, start);
+        if (!right) return;
+        working = right;
+      }
+      const workingEnd = working.start + getClipDuration(working);
+      if (end > working.start && end < workingEnd) {
+        splitClipAtTime(working, end);
+      }
+
+      if (effect === "fadeIn" || effect === "crossfade") {
+        const len = Math.min(duration, getClipDuration(working) / 2);
+        working.fadeIn = len;
+        working.fadeInCurve = curve;
+        working.fadeActive = true;
+      }
+      if (effect === "fadeOut" || effect === "crossfade") {
+        const len = Math.min(duration, getClipDuration(working) / 2);
+        working.fadeOut = len;
+        working.fadeOutCurve = curve;
+        working.fadeActive = true;
+      }
+    });
+  });
+
+  render();
+  if (state.playing) refreshPlayback();
+  closeEffectModal();
 }
 
 function sliceBuffer(buffer, startSec, durationSec) {
@@ -1450,6 +1773,16 @@ audioDelete.addEventListener("click", deleteClip);
 ripSelectedBtn.addEventListener("click", () => ripYouTube(false));
 ripNewBtn.addEventListener("click", () => ripYouTube(true));
 
+fxFadeIn.addEventListener("click", () => openEffectModal("fadeIn"));
+fxFadeOut.addEventListener("click", () => openEffectModal("fadeOut"));
+fxCrossfade.addEventListener("click", () => openEffectModal("crossfade"));
+
+effectApply.addEventListener("click", applySelectionEffect);
+effectCancel.addEventListener("click", closeEffectModal);
+effectOverlay.addEventListener("click", (e) => {
+  if (e.target === effectOverlay) closeEffectModal();
+});
+
 function clampRange() {
   state.rangeStart = Math.max(0, state.rangeStart);
   state.rangeEnd = Math.max(state.rangeStart + 0.1, state.rangeEnd);
@@ -1477,6 +1810,13 @@ rangeBody.addEventListener("mousedown", (e) => {
 });
 
 document.addEventListener("mousemove", (e) => {
+  if (selectingRange) {
+    const t = timeFromClientX(e.clientX);
+    state.rangeStart = Math.min(state.rangeStart, t);
+    state.rangeEnd = Math.max(state.rangeEnd, t);
+    updateRangeUI();
+    return;
+  }
   if (!rangeDrag) return;
   const t = timeFromClientX(e.clientX);
   if (rangeDrag === "left") {
@@ -1493,6 +1833,7 @@ document.addEventListener("mousemove", (e) => {
 });
 
 document.addEventListener("mouseup", () => {
+  selectingRange = false;
   rangeDrag = null;
 });
 
@@ -1575,6 +1916,8 @@ async function exportWavMix() {
       const clipStart = clip.start;
       const clipEnd = clip.start + clipDuration;
       if (clipEnd <= exportStart || clipStart >= exportEnd) return;
+      if (clipDuration <= 0) return;
+      const { startOffset, trimmed } = getClipWindow(clip);
       const source = off.createBufferSource();
       source.buffer = clip.buffer;
       source.playbackRate.value = clip.playbackRate || 1;
@@ -1596,6 +1939,9 @@ async function exportWavMix() {
         return f;
       });
 
+      const clipGain = off.createGain();
+      clipGain.gain.value = 1;
+
       const gain = off.createGain();
       gain.gain.value = track.volume;
 
@@ -1607,14 +1953,20 @@ async function exportWavMix() {
         chain = node;
       });
       chain.connect(highCut);
-      highCut.connect(gain).connect(off.destination);
+      highCut.connect(clipGain).connect(gain).connect(off.destination);
 
       const localStart = Math.max(0, clipStart - exportStart);
       const offsetTimeline = Math.max(0, exportStart - clipStart);
-      const offsetBuf = offsetTimeline * (clip.playbackRate || 1);
+      const rate = clip.playbackRate || 1;
+      const offsetBuf = startOffset + offsetTimeline * rate;
       const durationTimeline = Math.min(clipDuration - offsetTimeline, exportEnd - clipStart);
       if (durationTimeline <= 0) return;
-      source.start(localStart, offsetBuf, durationTimeline * (clip.playbackRate || 1));
+      const durationBuf = durationTimeline * rate;
+      const startTime = localStart;
+
+      applyFades(clipGain, startTime, durationTimeline, clip);
+
+      source.start(startTime, offsetBuf, durationBuf);
     });
   });
 
@@ -1653,6 +2005,8 @@ async function exportCompressed(format) {
       const clipStart = clip.start;
       const clipEnd = clip.start + clipDuration;
       if (clipEnd <= exportStart || clipStart >= exportEnd) return;
+      if (clipDuration <= 0) return;
+      const { startOffset, trimmed } = getClipWindow(clip);
       const source = ctx.createBufferSource();
       source.buffer = clip.buffer;
       source.playbackRate.value = clip.playbackRate || 1;
@@ -1674,6 +2028,9 @@ async function exportCompressed(format) {
         return f;
       });
 
+      const clipGain = ctx.createGain();
+      clipGain.gain.value = 1;
+
       const gain = ctx.createGain();
       gain.gain.value = track.volume;
 
@@ -1685,14 +2042,20 @@ async function exportCompressed(format) {
         chain = node;
       });
       chain.connect(highCut);
-      highCut.connect(gain).connect(dest);
+      highCut.connect(clipGain).connect(gain).connect(dest);
 
       const localStart = Math.max(0, clipStart - exportStart);
       const offsetTimeline = Math.max(0, exportStart - clipStart);
-      const offsetBuf = offsetTimeline * (clip.playbackRate || 1);
+      const rate = clip.playbackRate || 1;
+      const offsetBuf = startOffset + offsetTimeline * rate;
       const durationTimeline = Math.min(clipDuration - offsetTimeline, exportEnd - clipStart);
       if (durationTimeline <= 0) return;
-      source.start(ctx.currentTime + localStart, offsetBuf, durationTimeline * (clip.playbackRate || 1));
+      const durationBuf = durationTimeline * rate;
+      const startTime = ctx.currentTime + localStart;
+
+      applyFades(clipGain, startTime, durationTimeline, clip);
+
+      source.start(startTime, offsetBuf, durationBuf);
     });
   });
 
@@ -1837,6 +2200,18 @@ trackArea.addEventListener("dragover", (e) => {
   e.preventDefault();
 });
 
+trackArea.addEventListener("mousedown", (e) => {
+  if (e.button !== 0 || !e.altKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  selectingRange = true;
+  state.rangeVisible = true;
+  const t = timeFromClientX(e.clientX);
+  state.rangeStart = t;
+  state.rangeEnd = t;
+  updateRangeUI();
+}, true);
+
 trackArea.addEventListener("drop", (e) => {
   e.preventDefault();
   if (e.dataTransfer.files && e.dataTransfer.files.length) {
@@ -1864,6 +2239,13 @@ trackArea.addEventListener("drop", (e) => {
         key: null,
         camelot: null,
         sourceFile: file,
+        startOffset: 0,
+        endOffset: 0,
+        fadeIn: 0,
+        fadeOut: 0,
+        fadeActive: false,
+        fadeInCurve: 0.5,
+        fadeOutCurve: 0.5,
         start
       };
       state.tracks[trackIndex].clips.push(clip);
@@ -1887,7 +2269,7 @@ trackArea.addEventListener("click", (e) => {
     state.selectedTrackId = state.tracks[trackIndex].id;
   }
   let t = x / state.pxPerSec;
-  if (state.snap) {
+  if (state.snap && !e.shiftKey) {
     const beat = 60 / state.bpm;
     const gridSec = beat * (4 / state.grid);
     t = Math.round(t / gridSec) * gridSec;
